@@ -7,6 +7,7 @@ const PRESET = "请分析当前项目，并给出下一步写作建议。";
 let projectId = "";
 let providerId = "";
 let modelId = "";
+let sessionId = "";
 
 test.beforeEach(async ({ page }) => {
   const uniqueName = `Quick Start E2E ${Date.now()}`;
@@ -48,15 +49,37 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(async ({ page }) => {
-  await page.request.patch(SETTINGS_URL, {
+  if (sessionId) {
+    const cancelResponse = await page.request.post(`/api/v1/agent/sessions/${sessionId}/cancel`);
+    expect(cancelResponse.status()).toBe(200);
+    await expect
+      .poll(
+        async () => {
+          const response = await page.request.get("/api/v1/settings/agent-session-lock");
+          return ((await response.json()) as { is_locked: boolean }).is_locked;
+        },
+        { timeout: 30000 },
+      )
+      .toBe(false);
+  }
+
+  const settingsResponse = await page.request.patch(SETTINGS_URL, {
     data: { default_model: "", quick_start_enabled: false },
   });
-  if (projectId) await page.request.delete(`/api/v1/projects/${projectId}`);
-  if (modelId) await page.request.delete(`/api/v1/models/${modelId}`);
-  if (providerId) await page.request.delete(`/api/v1/model-providers/${providerId}`);
+  expect(settingsResponse.status()).toBe(200);
+  if (projectId) {
+    expect((await page.request.delete(`/api/v1/projects/${projectId}`)).status()).toBe(204);
+  }
+  if (modelId) {
+    expect((await page.request.delete(`/api/v1/models/${modelId}`)).status()).toBe(204);
+  }
+  if (providerId) {
+    expect((await page.request.delete(`/api/v1/model-providers/${providerId}`)).status()).toBe(204);
+  }
   projectId = "";
   modelId = "";
   providerId = "";
+  sessionId = "";
 });
 
 test("配置后可使用预设创建新会话", async ({ page }) => {
@@ -93,6 +116,8 @@ test("配置后可使用预设创建新会话", async ({ page }) => {
   );
   await quickStartButton.click();
   const messageRequest = await messageRequestPromise;
+  sessionId = messageRequest.url().match(/\/agent\/sessions\/([^/]+)\/message$/)?.[1] ?? "";
+  expect(sessionId).not.toBe("");
   const body = messageRequest.postDataJSON() as { message: string };
   expect(body.message).toBe(PRESET);
   await expect(page.getByText(PRESET).first()).toBeVisible();

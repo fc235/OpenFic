@@ -131,18 +131,16 @@ interface AgentMessageNavigationItem {
 - 修改 `frontend/src/features/assistant/components/agent/agent-messages.tsx`，增加 Virtuoso ref、可见范围状态和导航跳转回调。
 - 修改 `frontend/src/features/assistant/components/agent/agent-message-blocks.css`，增加轨道、导航点、浮层和响应式样式。
 - 修改 `frontend/src/i18n/locales/zh-CN.json` 与 `frontend/src/i18n/locales/en.json`，增加无正文兜底和无障碍文案。
-- 新增或扩展现有前端单元测试文件，只覆盖纯导航计算。
 
 不修改 Assistant 后端、会话传输、消息持久化、编辑器或设置页面。
 
 ## 最小验证范围
 
-遵循项目当前的精简测试要求，不增加 E2E。
+遵循项目当前的精简测试要求，本功能不新增单元测试或 E2E。
 
-- 少量纯函数测试覆盖：只提取用户消息、索引使用 `visibleMessageBlocks`、当前轮次判定、摘要截断与空内容兜底。
 - 运行前端 TypeScript 类型检查。
 - 运行前端 lint 和 production build。
-- 人工打开包含多轮消息的会话，验证悬停摘要、点击历史点、当前点高亮、流式输出时停止跟随以及窄屏隐藏。
+- 人工打开一个包含多轮消息的会话，一次性验证导航点数量、悬停摘要、点击历史点、当前点高亮、流式输出时停止跟随以及窄屏隐藏。
 
 ## 验收标准
 

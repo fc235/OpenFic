@@ -202,6 +202,7 @@ export function useAgentSidebar({
     isRollbacking: isAgentRollbacking,
     currentStage: agentCurrentStage,
     sessionId: agentSessionId,
+    startSession: startAgentSession,
     onSend: handleSend,
     onAbort: abortAgentSession,
     onCancelPendingMessage: handleCancelPendingMessage,

@@ -51,6 +51,8 @@ export interface Settings {
   editorAutoConvertPunctuation: boolean;
   editorAutoPairSymbols: boolean;
   editorShowLineNumbers: boolean;
+  quickStartEnabled: boolean;
+  quickStartPrompt: string;
 }
 
 /** 设置响应（后端格式） */
@@ -83,6 +85,8 @@ export interface SettingsResponse {
   editor_auto_convert_punctuation?: boolean;
   editor_auto_pair_symbols?: boolean;
   editor_show_line_numbers?: boolean;
+  quick_start_enabled: boolean;
+  quick_start_prompt: string;
 }
 
 /** 设置更新请求 */
@@ -115,6 +119,8 @@ export interface SettingsUpdateRequest {
   editor_auto_convert_punctuation?: boolean;
   editor_auto_pair_symbols?: boolean;
   editor_show_line_numbers?: boolean;
+  quick_start_enabled?: boolean;
+  quick_start_prompt?: string;
 }
 
 export interface AuditDetailsStorage {

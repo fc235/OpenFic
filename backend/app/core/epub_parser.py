@@ -7,11 +7,11 @@ from pathlib import PurePosixPath
 import posixpath
 import zipfile
 
-from lxml import etree, html
+from lxml import etree
 
 from app.core.txt_parser import ParseResult, ParsedChapter, ParsedVolume, _count_words
 
-MAX_EPUB_SIZE = 50 * 1024 * 1024
+MAX_EPUB_SIZE = 100 * 1024 * 1024
 XML_PARSER = etree.XMLParser(
     resolve_entities=False,
     no_network=True,
@@ -32,7 +32,7 @@ def parse_epub_content(filename: str, content: bytes) -> ParseResult:
             package = _read_xml(archive, members, opf_path, "EPUB 缺少包定义文件")
             manifest = _manifest_paths(package, opf_path)
             spine = _spine_item_ids(package)
-            toc_titles = _toc_titles(archive, members, package, manifest, opf_path)
+            toc_titles = _toc_titles(archive, members, package, manifest)
             chapters = [
                 _parse_spine_chapter(
                     archive,
@@ -58,20 +58,25 @@ def parse_epub_content(filename: str, content: bytes) -> ParseResult:
     )
 
 
-def _archive_members(archive: zipfile.ZipFile) -> set[str]:
+def _archive_members(archive: zipfile.ZipFile) -> dict[str, zipfile.ZipInfo]:
     total_size = 0
-    members: set[str] = set()
+    members: dict[str, zipfile.ZipInfo] = {}
     for info in archive.infolist():
         normalized = _normalize_archive_path(info.filename)
         total_size += max(info.file_size, 0)
         if total_size > MAX_EPUB_SIZE:
-            raise ValueError("EPUB 解压后的总大小超过限制（最大 50MB）")
+            raise ValueError("EPUB 解压后的总大小超过限制（最大 100MB）")
         if not info.is_dir():
-            members.add(normalized)
+            if normalized in members:
+                raise ValueError("EPUB 包含重复的文件路径")
+            members[normalized] = info
     return members
 
 
-def _reject_encrypted_content(archive: zipfile.ZipFile, members: set[str]) -> None:
+def _reject_encrypted_content(
+    archive: zipfile.ZipFile,
+    members: dict[str, zipfile.ZipInfo],
+) -> None:
     encryption_path = "META-INF/encryption.xml"
     if encryption_path not in members:
         return
@@ -82,16 +87,19 @@ def _reject_encrypted_content(archive: zipfile.ZipFile, members: set[str]) -> No
 
 def _read_xml(
     archive: zipfile.ZipFile,
-    members: set[str],
+    members: dict[str, zipfile.ZipInfo],
     path: str,
     missing_message: str,
 ) -> etree._Element:
-    if path not in members:
+    member = members.get(path)
+    if member is None:
         raise ValueError(missing_message)
     try:
-        return etree.fromstring(archive.read(path), parser=XML_PARSER)
-    except (etree.XMLSyntaxError, ValueError) as exc:
+        return etree.fromstring(archive.read(member), parser=XML_PARSER)
+    except (etree.XMLSyntaxError, ValueError, KeyError) as exc:
         raise ValueError("EPUB XML 格式无效") from exc
+    except (RuntimeError, OSError, zipfile.BadZipFile) as exc:
+        raise ValueError("EPUB 资源无法读取") from exc
 
 
 def _container_opf_path(container: etree._Element) -> str:
@@ -130,10 +138,9 @@ def _spine_item_ids(package: etree._Element) -> list[str]:
 
 def _toc_titles(
     archive: zipfile.ZipFile,
-    members: set[str],
+    members: dict[str, zipfile.ZipInfo],
     package: etree._Element,
     manifest: dict[str, tuple[str, etree._Element]],
-    opf_path: str,
 ) -> dict[str, str]:
     nav_items = [
         (path, item)
@@ -145,14 +152,22 @@ def _toc_titles(
         nav_items.append(manifest[spine[0].get("toc")])
 
     titles: dict[str, str] = {}
-    for nav_path, _item in nav_items:
+    for nav_path, item in nav_items:
         if nav_path not in members:
             continue
-        try:
-            document = etree.fromstring(archive.read(nav_path), parser=XML_PARSER)
-        except (etree.XMLSyntaxError, ValueError):
-            continue
+        document = _read_xml(archive, members, nav_path, "EPUB 目录文件无法读取")
         base_path = posixpath.dirname(nav_path)
+        if item.get("media-type") == "application/x-dtbncx+xml":
+            for nav_point in document.xpath("//*[local-name()='navPoint']"):
+                sources = nav_point.xpath("./*[local-name()='content'][1]/@src")
+                title = _first_text(
+                    nav_point.xpath(
+                        "./*[local-name()='navLabel']/*[local-name()='text']//text()"
+                    )
+                )
+                if sources and title:
+                    titles[_resolve_path(base_path, sources[0])] = title
+            continue
         for link in document.xpath("//*[local-name()='a'][@href]"):
             target = _resolve_path(base_path, link.get("href"))
             title = " ".join(link.itertext()).strip()
@@ -163,7 +178,7 @@ def _toc_titles(
 
 def _parse_spine_chapter(
     archive: zipfile.ZipFile,
-    members: set[str],
+    members: dict[str, zipfile.ZipInfo],
     manifest: dict[str, tuple[str, etree._Element]],
     item_id: str,
     toc_titles: dict[str, str],
@@ -171,13 +186,16 @@ def _parse_spine_chapter(
     if item_id not in manifest:
         raise ValueError("EPUB 阅读顺序引用了缺失资源")
     path, _item = manifest[item_id]
-    if path not in members:
+    member = members.get(path)
+    if member is None:
         raise ValueError("EPUB 阅读顺序资源不存在")
     try:
-        document = html.fromstring(archive.read(path))
-    except (ValueError, etree.ParserError) as exc:
+        document = etree.fromstring(archive.read(member), parser=XML_PARSER)
+    except (etree.XMLSyntaxError, ValueError, KeyError) as exc:
         raise ValueError("EPUB XHTML 格式无效") from exc
-    bodies = document.xpath("//body")
+    except (RuntimeError, OSError, zipfile.BadZipFile) as exc:
+        raise ValueError("EPUB 资源无法读取") from exc
+    bodies = document.xpath("//*[local-name()='body']")
     if not bodies:
         raise ValueError("EPUB 章节缺少正文")
     body = bodies[0]
@@ -188,7 +206,7 @@ def _parse_spine_chapter(
         raise ValueError("EPUB 章节没有可读取的正文")
     title = (
         toc_titles.get(path)
-        or _first_text(document.xpath("//title/text()"))
+        or _first_text(document.xpath("//*[local-name()='title']/text()"))
         or _first_text(body.xpath(".//*[self::h1 or self::h2 or self::h3][1]//text()"))
         or PurePosixPath(path).stem
     )

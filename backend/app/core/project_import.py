@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Project import parsing for text files and ZIP archives."""
+"""Project import parsing for text files, ZIP archives, and EPUB files."""
 
 from collections.abc import Iterable
 import io

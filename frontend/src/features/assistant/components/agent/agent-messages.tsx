@@ -117,6 +117,7 @@ interface AgentMessagesProps {
   onOpenChanges?: (summary: AgentChangeSummary) => void;
   onAtBottomChange?: (isAtBottom: boolean) => void;
   scrollToBottomFnRef?: React.MutableRefObject<(() => void) | null>;
+  navigateToMessageId?: string | null;
 }
 
 function isRollbackableUserMessage(message: AgentMessageType): boolean {
@@ -297,6 +298,7 @@ export function AgentMessages({
   onOpenChanges,
   onAtBottomChange,
   scrollToBottomFnRef,
+  navigateToMessageId,
 }: AgentMessagesProps) {
   const { t } = useTranslation();
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -409,8 +411,7 @@ export function AgentMessages({
         activeBlockIndex = navigationItems[navigationItems.length - 1].blockIndex;
       } else {
         const viewportTop = container.getBoundingClientRect().top + 16;
-        const firstRenderedElement =
-          contentRef.current?.querySelector<HTMLElement>("[data-index]");
+        const firstRenderedElement = contentRef.current?.querySelector<HTMLElement>("[data-index]");
         const firstRenderedIndex = Number(firstRenderedElement?.dataset.index ?? 0);
         for (const item of navigationItems) {
           const element = contentRef.current?.querySelector<HTMLElement>(
@@ -663,13 +664,24 @@ export function AgentMessages({
       virtuosoRef.current.scrollToIndex({
         index: current.blockIndex,
         align: "start",
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "auto"
-          : "smooth",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
       });
     },
     [navigationItems],
   );
+
+  const lastExternalNavigationRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!navigateToMessageId || lastExternalNavigationRef.current === navigateToMessageId) return;
+    const blockIndex = visibleMessageBlocks.findIndex((block) =>
+      block.messages.some((message) => message.id === navigateToMessageId),
+    );
+    if (blockIndex < 0 || !virtuosoRef.current) return;
+    lastExternalNavigationRef.current = navigateToMessageId;
+    setVisibleStartIndex(blockIndex);
+    shouldFollowBottomRef.current = false;
+    virtuosoRef.current.scrollToIndex({ index: blockIndex, align: "start", behavior: "smooth" });
+  }, [navigateToMessageId, visibleMessageBlocks]);
 
   const copyText = useCallback(
     async (content: string, emptyMessage: string, actionId: string) => {

@@ -1,5 +1,5 @@
-import { readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -96,21 +96,31 @@ function prepareFontAssets() {
 
 prepareFontAssets();
 const files = walk(distDir, []);
-const precacheList = files
-  .filter((f) => {
-    const name = f.split(sep).pop();
-    if (EXCLUDE_FILES.has(name)) {
-      return false;
-    }
+const indexHtml = readFileSync(join(distDir, "index.html"), "utf8");
+const shellPaths = new Set(
+  [...indexHtml.matchAll(/(?:src|href)=["'](\/[^"']+)["']/g)].map((match) => match[1]),
+);
+shellPaths.add("/index.html");
+
+const manifestPath = join(distDir, "manifest.webmanifest");
+try {
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  for (const icon of manifest.icons ?? []) {
+    if (typeof icon.src === "string" && icon.src.startsWith("/")) shellPaths.add(icon.src);
+  }
+} catch {
+  // The manifest is optional; index.html and its static dependency closure are sufficient.
+}
+
+const precacheList = [...shellPaths]
+  .filter((path) => {
+    const name = path.split("/").pop();
+    if (EXCLUDE_FILES.has(name)) return false;
     const dot = name.lastIndexOf(".");
     const ext = dot >= 0 ? name.slice(dot).toLowerCase() : "";
     return !EXCLUDE_EXTS.has(ext);
   })
-  .map((f) => {
-    const rel = relative(distDir, f).split(sep).join("/");
-    return "/" + rel;
-  })
-  .sort();
+  .sort((left, right) => left.localeCompare(right));
 
 const buildHash = createHash("sha256");
 for (const file of files) {

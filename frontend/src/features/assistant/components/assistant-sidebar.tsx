@@ -337,6 +337,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
     const [isLoadingTask, setIsLoadingTask] = useState(false);
     const [currentTaskTitle, setCurrentTaskTitle] = useState<string>("");
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+    const [navigateToMessageId, setNavigateToMessageId] = useState<string | null>(null);
     const [summaryWarningOpen, setSummaryWarningOpen] = useState(false);
     const [sessionTotalUsage, setSessionTotalUsage] = useState<SessionTotalUsageState>(() =>
       createSessionTotalUsageState(),
@@ -648,6 +649,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
     const agentSidebar = useAgentSidebar({
       projectId,
       scrollToBottomKey: currentTaskId,
+      navigateToMessageId,
       modelId: effectiveModelId,
       reasoningEffort,
       agentKey: effectiveAgentKey,
@@ -1054,6 +1056,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
 
     const loadTask = useCallback(
       async (task: TaskListItem) => {
+        setNavigateToMessageId(task.matchedMessageId ?? null);
         void loadTaskById(task.id, {
           initialTask: task,
         });
@@ -1092,6 +1095,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
       setView("tasks");
       setIsLoadingTask(false);
       setCurrentTaskId(null);
+      setNavigateToMessageId(null);
       setCurrentTaskTitle("");
       void refetchRecentTasks();
     }, [agentSidebar, refetchRecentTasks]);

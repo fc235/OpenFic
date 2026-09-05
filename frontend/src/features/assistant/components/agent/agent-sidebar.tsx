@@ -55,6 +55,7 @@ interface AgentSidebarProps {
   projectedSpecialPanels?: AgentSpecialPanel[];
   onAtBottomChange?: (isAtBottom: boolean) => void;
   scrollToBottomFnRef?: React.MutableRefObject<(() => void) | null>;
+  navigateToMessageId?: string | null;
 }
 
 export function useAgentSidebar({
@@ -80,6 +81,7 @@ export function useAgentSidebar({
   projectedSpecialPanels = [],
   onAtBottomChange,
   scrollToBottomFnRef,
+  navigateToMessageId,
 }: AgentSidebarProps) {
   const {
     messages: agentMessages,
@@ -229,6 +231,7 @@ export function useAgentSidebar({
         changes={agentChanges}
         onAtBottomChange={onAtBottomChange}
         scrollToBottomFnRef={scrollToBottomFnRef}
+        navigateToMessageId={navigateToMessageId}
       />
     ),
     SpecialPanelsComponent: (

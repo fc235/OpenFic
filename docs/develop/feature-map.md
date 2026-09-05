@@ -2,7 +2,9 @@
 
 > 用途：在修改或新增功能前，快速找到用户入口、前端实现、后端接口、业务服务、数据模型和测试。
 >
-> 基线：`2eae5dbe08dee4f2c2eae801a18ec41e7e576ff1`（2026-09-02）。代码演进后，应同步更新本文。
+> 基线：`codex/todo-improvements`（2026-09-05）。代码演进后，应同步更新本文。
+>
+> 状态说明：表中未特别标注的能力均为当前分支可用；`docs/superpowers/specs/` 与 `plans/` 是设计/实施记录，不能单独视为已实现。
 
 ## 1. 使用方法
 
@@ -88,9 +90,9 @@ Agent 会话另有：HTTP 发起/控制 -> SessionRunner/LangGraph -> Socket.IO 
 | 章节搜索、查找替换 | `chapter-search*.tsx`、`find-replace-panel.tsx`、`writing/lib/search-and-replace.ts` | `GET /projects/{id}/chapters/search`，后端 `chapters.py` | `tests/api/test_chapters.py` | 区分当前编辑器内替换与跨章节全文搜索 |
 | 章节移动/排序 | `move-chapter-to-volume-dialog.tsx`、分组卷列表拖拽逻辑 | `POST /chapters/reorder`、`POST /chapters/{id}/move-to-volume` | `chapter_service.py`、`chapter_repo.py`、相关 API 测试 | 保证卷内顺序与全局顺序一致；移动后摘要和索引可能需要刷新 |
 | 章节导出 | `writing/components/chapter-export-dialog.tsx`、`lib/chapter-export-selection.ts` | `api/routers/chapter_exports.py` -> `chapter_export/service.py` | `api/schemas/chapter_export.py`；`backend/tests/api/test_chapter_exports.py` | 创建后台任务、轮询状态、取消、下载四段链路；检查文件名、章节选择和临时文件清理 |
-| 笔记树与分类 | 写作页“笔记”；`writing/components/note-sidebar.tsx`、`note-tree*.tsx`、`hooks/use-notes.ts`、`store/use-notes-store.ts` | `api/routers/notes.py` -> `storage/services/note_service.py` -> `repos/note_repo.py`、`note_category_repo.py` | `models/note.py`；`tests/api/test_notes.py`、`storage/test_note_service.py` | 支持分类/笔记混合移动；修改树结构时检查排序、父分类和循环移动校验 |
+| 笔记树与分类 | 写作页“笔记”；`writing/components/note-sidebar.tsx`、`note-tree*.tsx`、`note-tree-order.ts`、`hooks/use-notes.ts` | `POST /projects/{id}/note-items/reorder` -> `note_service.reorder_item` | `models/note.py` 的共享 `order_index`；迁移 `1022`；`tests/api/test_notes.py` | 分类和笔记共享持久化顺序；提交完整同级序列，后端校验项目归属、层级和循环移动 |
 | 笔记编辑、锁定、隐藏、搜索 | `note-editor.tsx`、`note-search-popover.tsx` | `PATCH /notes/{id}`、`/lock`、`/hidden`，`GET .../notes/search` | `models/note.py`；`test_notes.py` | 锁定影响用户与 Agent 写入；隐藏影响 Agent 上下文/mention，不只是 UI 可见性 |
-| 笔记导入导出 | `note-import-dialog.tsx` | `api/routers/notes.py` -> `storage/services/note_transfer_service.py` | `api/schemas/note.py`；`test_notes.py`、`storage/test_note_service.py` | 支持 Markdown/ZIP、预览、导入、单笔记导出、分类导出；注意路径安全和重名处理 |
+| 笔记导入导出 | `note-import-dialog.tsx` | `api/routers/notes.py` -> `storage/services/note_transfer_service.py` | `api/schemas/note.py`；`test_notes.py`、`storage/test_note_service.py` | 支持 Markdown/ZIP 与跨项目选择复制；跨项目导入有冲突预览、重命名/覆盖/跳过，来源只读，目标事务提交 |
 | 角色管理 | `/characters`；`features/characters/pages/characters-page.tsx`、`components/character-*.tsx`、`store/use-characters-store.ts` | `api/routers/characters.py` -> `storage/services/character_service.py` -> `repos/character_repo.py` | `models/character.py`；`backend/tests/api/test_characters.py` | 支持头像、收藏、批量收藏/删除、搜索；Agent 的角色工具和版本快照也需同步 |
 | 世界书/设定条目 | `/world-info`；`features/world-info/pages/world-info-page.tsx`、`components/entry-*.tsx`、`store/use-world-info-store.ts` | `api/routers/world_info.py`、`world_info_entries.py` -> 对应 service/repo | `models/world_info.py`、`world_info_entry.py`；`tests/api/test_world_info*.py`、`storage/test_world_info_entry_service.py` | 支持排序、启停、批量操作、搜索；条目是 Agent 上下文与版本快照的一部分 |
 | 世界书导入 | `world-info/components/import-world-info-dialog.tsx` | `/world-info/import/preview`、`/world-info/{id}/entries/import-stream` | `api/schemas/world_info.py`；`tests/api/test_world_info_entries.py` | 导入使用流式进度；检查 UID、顺序、重复项和中断后的状态 |
@@ -127,6 +129,8 @@ Agent 会话另有：HTTP 发起/控制 -> SessionRunner/LangGraph -> Socket.IO 
 | --- | --- | --- | --- | --- |
 | Assistant 侧栏与会话状态 | 全局右侧栏；`assistant/components/assistant-sidebar.tsx`、`agent/agent-sidebar.tsx` | `api/routers/agent_runtime.py`、`agent_runtime/runner/session_runner.py` | `models/task.py`、`task_message.py`、运行时持久化；`tests/api/test_agent.py`、`tests/agent_runtime/test_session_runner.py` | 这是 Agent 前端总装配点；大文件修改前先定位对应 Hook/子组件，避免把逻辑继续堆进去 |
 | 快捷新会话 | 空闲 Assistant 最近任务卡；`recent-tasks-card.tsx`、`assistant-sidebar.tsx` | 复用 `/settings` 与 `POST /agent/sessions`、`/message` | 通用设置表；`tests/api/test_settings.py`、`frontend/e2e/quick-start-session.spec.ts` | 全局仅一条预设，作为首条真实用户消息发送；不要并入规则或提示词链 |
+| 会话消息导航 | Agent 消息区左侧导航轨；`assistant/components/message-navigator*.tsx`、`virtualized-agent-messages.tsx` | 无新增后端接口，复用已加载消息和虚拟列表定位 | 稳定消息 ID、虚拟列表测量状态 | 点击用户消息摘要跳到对应消息；修改消息过滤或虚拟化时同步检查导航索引与可见项 |
+| 会话正文搜索 | Assistant“全部任务”搜索；`tasks/all-tasks-page.tsx` | `GET /projects/{id}/tasks?search=` -> `task_repo._matches_search`、`find_message_matches` | `AgentRunMessage`；`tests/api/test_tasks.py` | 同时匹配任务标题和用户/助手正文，返回命中消息 ID/摘要，打开任务后由虚拟列表跳到对应消息 |
 | 发消息、流式响应、断线重连 | `assistant/hooks/use-agent-session*.ts`、`lib/agent-socket*.ts`、`streaming-*.ts` | `POST /sessions`、`/message`；`socket/handlers.py`；`runner/event_translator.py`、`streaming/replay_buffer.py` | task/message/checkpoint；`tests/socket/**`、`tests/agent_runtime/test_replay_buffer.py` | 同时验证首连、重连重放、重复事件去重、排队消息和取消竞态 |
 | 消息渲染与工具卡片 | `assistant/components/agent/message-blocks/**`、`display/**` | 工具事件由 `event_translator.py` 翻译 | 消息 payload/metadata；工具相关测试 | 新消息类型要更新标准化、分块、显示注册表、实时合并和历史恢复映射 |
 | Mention 与 Command | `agent-mention-suggestions.tsx`、`extensions/mention-*`、`command-*`、`lib/mention-text.ts` | `GET /projects/{id}/mentions`、`commands`；`agent_runtime/mentions.py` | 笔记/章节/角色/世界条目及命令服务；`tests/agent_runtime/test_mentions.py`、`tests/storage/test_command_service.py` | 新 mention 类型需同时更新搜索、编辑器节点、序列化和上下文解析 |

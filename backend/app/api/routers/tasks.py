@@ -12,8 +12,13 @@ from sqlmodel import col
 from app.agent_runtime.modes import AgentMode
 from app.agent_runtime.attachments import delete_attachments_for_task
 from app.agent_runtime.persistence.child_runs import list_child_runs_for_parent
-from app.agent_runtime.persistence.task_projection import load_task_messages_for_agent_session
-from app.agent_runtime.runner.checkpointer import delete_checkpoints_for_thread, get_checkpointer
+from app.agent_runtime.persistence.task_projection import (
+    load_task_messages_for_agent_session,
+)
+from app.agent_runtime.runner.checkpointer import (
+    delete_checkpoints_for_thread,
+    get_checkpointer,
+)
 
 from app.api.schemas.task import (
     TaskListItem,
@@ -60,14 +65,20 @@ async def _list_task_checkpoint_thread_ids(
 async def _has_pending_interrupt(checkpointer, session_id: str | None) -> bool:
     if not session_id:
         return False
-    checkpoint = await checkpointer.aget_tuple({"configurable": {"thread_id": session_id}})
-    return any(
-        len(pending_write) >= 3
-        and pending_write[1] == "__interrupt__"
-        and isinstance(pending_write[2], list)
-        and pending_write[2]
-        for pending_write in checkpoint.pending_writes or []
-    ) if checkpoint is not None else False
+    checkpoint = await checkpointer.aget_tuple(
+        {"configurable": {"thread_id": session_id}}
+    )
+    return (
+        any(
+            len(pending_write) >= 3
+            and pending_write[1] == "__interrupt__"
+            and isinstance(pending_write[2], list)
+            and pending_write[2]
+            for pending_write in checkpoint.pending_writes or []
+        )
+        if checkpoint is not None
+        else False
+    )
 
 
 async def _delete_checkpoint_threads(
@@ -165,6 +176,12 @@ async def list_tasks(
             )
             cancelled_revision_ids = set(cancelled_revision_result.scalars().all())
 
+        message_matches = await task_service.find_task_message_matches(
+            session,
+            [task.id for task in result.items],
+            search or "",
+        )
+
         items = [
             TaskListItem(
                 id=task.id,
@@ -184,6 +201,8 @@ async def list_tasks(
                 is_favorited=task.is_favorited,
                 created_at=task.created_at,
                 updated_at=task.updated_at,
+                matched_message_id=message_matches.get(task.id, (None, None))[0],
+                matched_message_snippet=message_matches.get(task.id, (None, None))[1],
             )
             for task in result.items
         ]

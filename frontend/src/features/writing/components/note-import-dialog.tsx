@@ -233,6 +233,29 @@ export function NoteImportDialog({
     }
   }, [buildProjectRequest, projectId, t]);
 
+  const handleOverrideChange = useCallback(
+    async (noteId: string, strategy: NoteConflictStrategy) => {
+      const nextOverrides = { ...conflictOverrides, [noteId]: strategy };
+      setConflictOverrides(nextOverrides);
+      const requestId = ++previewRequestRef.current;
+      setIsLoading(true);
+      try {
+        const nextPreview = await previewProjectNoteImport(projectId, {
+          ...buildProjectRequest(),
+          conflictOverrides: nextOverrides,
+        });
+        if (requestId === previewRequestRef.current) setProjectPreview(nextPreview);
+      } catch (importError) {
+        if (requestId === previewRequestRef.current) {
+          setError(getImportErrorMessage(importError, t("writing.noteImport.parseFailed")));
+        }
+      } finally {
+        if (requestId === previewRequestRef.current) setIsLoading(false);
+      }
+    },
+    [buildProjectRequest, conflictOverrides, projectId, t],
+  );
+
   const toggleNote = useCallback((id: string, checked: boolean) => {
     setSelectedNoteIds((items) =>
       checked ? [...new Set([...items, id])] : items.filter((item) => item !== id),
@@ -324,13 +347,13 @@ export function NoteImportDialog({
                 variant={sourceMode === "file" ? "solid" : "soft"}
                 onClick={() => setSourceMode("file")}
               >
-                文件导入
+                {t("writing.noteImport.fileSource")}
               </Button>
               <Button
                 variant={sourceMode === "project" ? "solid" : "soft"}
                 onClick={() => setSourceMode("project")}
               >
-                其他项目
+                {t("writing.noteImport.projectSource")}
               </Button>
             </Flex>
             {sourceMode === "project" ? (
@@ -339,7 +362,7 @@ export function NoteImportDialog({
                   as="label"
                   size="2"
                 >
-                  来源项目
+                  {t("writing.noteImport.sourceProject")}
                 </Text>
                 <select
                   className="note-import-select"
@@ -350,7 +373,7 @@ export function NoteImportDialog({
                     setSelectedNoteIds([]);
                   }}
                 >
-                  <option value="">请选择项目</option>
+                  <option value="">{t("writing.noteImport.selectProject")}</option>
                   {projects.map((project) => (
                     <option
                       key={project.id}
@@ -382,7 +405,7 @@ export function NoteImportDialog({
                   as="label"
                   size="2"
                 >
-                  同名笔记默认处理
+                  {t("writing.noteImport.defaultConflict")}
                 </Text>
                 <select
                   className="note-import-select"
@@ -391,9 +414,9 @@ export function NoteImportDialog({
                     setConflictStrategy(event.target.value as NoteConflictStrategy)
                   }
                 >
-                  <option value="rename">重命名后导入</option>
-                  <option value="overwrite">覆盖目标笔记</option>
-                  <option value="skip">跳过</option>
+                  <option value="rename">{t("writing.noteImport.rename")}</option>
+                  <option value="overwrite">{t("writing.noteImport.overwrite")}</option>
+                  <option value="skip">{t("writing.noteImport.skip")}</option>
                 </select>
               </Box>
             ) : (
@@ -464,10 +487,24 @@ export function NoteImportDialog({
                   mb="4"
                   wrap="wrap"
                 >
-                  <Badge>新增笔记 {projectPreview.createNoteCount}</Badge>
-                  <Badge color="orange">覆盖 {projectPreview.overwriteNoteCount}</Badge>
-                  <Badge color="gray">跳过 {projectPreview.skipNoteCount}</Badge>
-                  <Badge color="blue">新建分类 {projectPreview.createCategoryCount}</Badge>
+                  <Badge>
+                    {t("writing.noteImport.createdNotes", {
+                      count: projectPreview.createNoteCount,
+                    })}
+                  </Badge>
+                  <Badge color="orange">
+                    {t("writing.noteImport.overwrittenNotes", {
+                      count: projectPreview.overwriteNoteCount,
+                    })}
+                  </Badge>
+                  <Badge color="gray">
+                    {t("writing.noteImport.skippedNotes", { count: projectPreview.skipNoteCount })}
+                  </Badge>
+                  <Badge color="blue">
+                    {t("writing.noteImport.createdCategories", {
+                      count: projectPreview.createCategoryCount,
+                    })}
+                  </Badge>
                 </Flex>
                 <Box className="note-import-conflicts">
                   {projectPreview.actions.map((action) => (
@@ -484,16 +521,17 @@ export function NoteImportDialog({
                       </Text>
                       <select
                         value={conflictOverrides[action.sourceNoteId] ?? conflictStrategy}
+                        disabled={isLoading}
                         onChange={(event) =>
-                          setConflictOverrides((items) => ({
-                            ...items,
-                            [action.sourceNoteId]: event.target.value as NoteConflictStrategy,
-                          }))
+                          void handleOverrideChange(
+                            action.sourceNoteId,
+                            event.target.value as NoteConflictStrategy,
+                          )
                         }
                       >
-                        <option value="rename">重命名</option>
-                        <option value="overwrite">覆盖</option>
-                        <option value="skip">跳过</option>
+                        <option value="rename">{t("writing.noteImport.rename")}</option>
+                        <option value="overwrite">{t("writing.noteImport.overwrite")}</option>
+                        <option value="skip">{t("writing.noteImport.skip")}</option>
                       </select>
                     </Flex>
                   ))}
@@ -633,8 +671,11 @@ export function NoteImportDialog({
                 size="2"
                 color="gray"
               >
-                已导入 {projectResult.createdNoteCount} 个笔记，覆盖{" "}
-                {projectResult.overwrittenNoteCount} 个，跳过 {projectResult.skippedNoteCount} 个
+                {t("writing.noteImport.projectSuccessInfo", {
+                  created: projectResult.createdNoteCount,
+                  overwritten: projectResult.overwrittenNoteCount,
+                  skipped: projectResult.skippedNoteCount,
+                })}
               </Text>
             ) : (
               result && (
@@ -677,7 +718,7 @@ export function NoteImportDialog({
               }
               onClick={() => void handleProjectPreview()}
             >
-              预览导入
+              {t("writing.noteImport.previewProject")}
               <ChevronRight size={16} />
             </Button>
           </Flex>

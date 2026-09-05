@@ -6,11 +6,23 @@ Task Repository - 任务数据访问层。
 from datetime import UTC, datetime
 
 from sqlalchemy import delete as sql_delete
-from sqlalchemy import func, select, update as sql_update
+from sqlalchemy import exists, func, or_, select, update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
 
+from app.agent_runtime.persistence.model import AgentRunMessage
 from app.storage.models.task import Task
+
+
+def _matches_search(search_query: str):
+    message_match = exists(
+        select(1).where(
+            col(AgentRunMessage.task_id) == col(Task.id),
+            col(AgentRunMessage.role).in_(["user", "assistant"]),
+            col(AgentRunMessage.content).contains(search_query),
+        )
+    )
+    return or_(col(Task.title).contains(search_query), message_match)
 
 
 async def add_token_usage(
@@ -105,7 +117,7 @@ async def list_by_project(
     query = select(Task).where(col(Task.project_id) == project_id)
 
     if search_query:
-        query = query.where(col(Task.title).contains(search_query))
+        query = query.where(_matches_search(search_query))
 
     if favorited_only:
         query = query.where(col(Task.is_favorited))
@@ -143,13 +155,40 @@ async def count_by_project(
     query = select(func.count(col(Task.id))).where(col(Task.project_id) == project_id)
 
     if search_query:
-        query = query.where(col(Task.title).contains(search_query))
+        query = query.where(_matches_search(search_query))
 
     if favorited_only:
         query = query.where(col(Task.is_favorited))
 
     result = await session.execute(query)
     return result.scalar_one()
+
+
+async def find_message_matches(
+    session: AsyncSession, task_ids: list[str], search_query: str
+) -> dict[str, tuple[str, str]]:
+    if not task_ids or not search_query.strip():
+        return {}
+    result = await session.execute(
+        select(AgentRunMessage)
+        .where(
+            col(AgentRunMessage.task_id).in_(task_ids),
+            col(AgentRunMessage.role).in_(["user", "assistant"]),
+            col(AgentRunMessage.content).contains(search_query),
+        )
+        .order_by(col(AgentRunMessage.created_at).asc())
+    )
+    matches: dict[str, tuple[str, str]] = {}
+    needle = search_query.casefold()
+    for message in result.scalars().all():
+        if message.task_id in matches:
+            continue
+        position = message.content.casefold().find(needle)
+        start = max(0, position - 40)
+        end = min(len(message.content), position + len(search_query) + 80)
+        snippet = message.content[start:end].replace("\n", " ").strip()
+        matches[message.task_id] = (message.id, snippet)
+    return matches
 
 
 async def update_task(session: AsyncSession, task: Task) -> Task:

@@ -2174,6 +2174,8 @@ function transformTaskListItem(raw: Record<string, unknown>): TaskListItem {
     isFavorited: raw.is_favorited as boolean,
     createdAt: normalizeUtcDateString(raw.created_at),
     updatedAt: normalizeUtcDateString(raw.updated_at),
+    matchedMessageId: raw.matched_message_id as string | null | undefined,
+    matchedMessageSnippet: raw.matched_message_snippet as string | null | undefined,
   };
 }
 

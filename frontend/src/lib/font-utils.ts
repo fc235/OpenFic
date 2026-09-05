@@ -52,6 +52,20 @@ const RADIX_FONT_SIZE_STEPS = Object.keys(RADIX_FONT_SIZE_DEFAULTS) as Array<
 
 const FONT_SIZE_STYLE_ID = "openfic-base-font-size";
 
+const fontLoaders: Record<string, () => Promise<unknown>> = {
+  "Noto Serif SC Variable": () => import("@fontsource-variable/noto-serif-sc"),
+  "Noto Sans SC Variable": () => import("@fontsource-variable/noto-sans-sc"),
+  "ZCOOL KuaiLe": () => import("@fontsource/zcool-kuaile"),
+  "ZCOOL XiaoWei": () => import("@fontsource/zcool-xiaowei"),
+  "Ma Shan Zheng": () => import("@fontsource/ma-shan-zheng"),
+  "WDXL Lubrifont SC": () => import("@fontsource/wdxl-lubrifont-sc"),
+  "JetBrains Mono Variable": () => import("@fontsource-variable/jetbrains-mono"),
+  "Fira Code Variable": () => import("@fontsource-variable/fira-code"),
+  "Roboto Mono Variable": () => import("@fontsource-variable/roboto-mono"),
+  "Source Code Pro Variable": () => import("@fontsource-variable/source-code-pro"),
+  "Cascadia Code Variable": () => import("@fontsource-variable/cascadia-code"),
+};
+
 /**
  * 应用自定义基础字号（px）到页面。
  *
@@ -162,6 +176,7 @@ export async function loadConfiguredFonts(
   );
   if (!configuredFonts.length) return;
 
+  await Promise.all(configuredFonts.map((font) => fontLoaders[font]?.()));
   await Promise.all(configuredFonts.map((font) => document.fonts.load(`1em "${font}"`)));
   await document.fonts.ready;
 }

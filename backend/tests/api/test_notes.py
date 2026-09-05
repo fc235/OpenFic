@@ -164,6 +164,138 @@ async def test_list_notes_project_404(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_reorder_mixed_note_items_and_reject_cycle(client: AsyncClient) -> None:
+    project_id, _ = await _create_project(client)
+    first = (
+        await client.post(
+            f"/api/v1/projects/{project_id}/note-categories", json={"title": "A"}
+        )
+    ).json()
+    second = (
+        await client.post(
+            f"/api/v1/projects/{project_id}/note-categories", json={"title": "B"}
+        )
+    ).json()
+    note = (
+        await client.post(f"/api/v1/projects/{project_id}/notes", json={"title": "N"})
+    ).json()
+    child = (
+        await client.post(
+            f"/api/v1/projects/{project_id}/note-categories",
+            json={"title": "child", "parent_id": first["id"]},
+        )
+    ).json()
+
+    response = await client.post(
+        f"/api/v1/projects/{project_id}/note-items/reorder",
+        json={
+            "kind": "note",
+            "item_id": note["id"],
+            "target_category_id": None,
+            "ordered_siblings": [
+                {"kind": "category", "item_id": first["id"]},
+                {"kind": "note", "item_id": note["id"]},
+                {"kind": "category", "item_id": second["id"]},
+            ],
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["categories"][0]["order_index"] == 0
+    assert data["root_notes"][0]["order_index"] == 1
+    assert data["categories"][1]["order_index"] == 2
+
+    rejected = await client.post(
+        f"/api/v1/projects/{project_id}/note-items/reorder",
+        json={
+            "kind": "category",
+            "item_id": first["id"],
+            "target_category_id": child["id"],
+            "ordered_siblings": [{"kind": "category", "item_id": first["id"]}],
+        },
+    )
+    assert rejected.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_import_notes_from_project_merges_and_overwrites(
+    client: AsyncClient,
+) -> None:
+    source_id, _ = await _create_project(client)
+    target_id, _ = await _create_project(client)
+    source_cat = (
+        await client.post(
+            f"/api/v1/projects/{source_id}/note-categories", json={"title": "设定"}
+        )
+    ).json()
+    target_cat = (
+        await client.post(
+            f"/api/v1/projects/{target_id}/note-categories", json={"title": "设定"}
+        )
+    ).json()
+    source_note = (
+        await client.post(
+            f"/api/v1/projects/{source_id}/notes",
+            json={"title": "角色", "content": "新", "category_id": source_cat["id"]},
+        )
+    ).json()
+    target_note = (
+        await client.post(
+            f"/api/v1/projects/{target_id}/notes",
+            json={"title": "角色", "content": "旧", "category_id": target_cat["id"]},
+        )
+    ).json()
+    await client.patch(
+        f"/api/v1/notes/{target_note['id']}/lock", json={"is_locked": True}
+    )
+    request = {
+        "source_project_id": source_id,
+        "selected_category_ids": [source_cat["id"]],
+        "selected_note_ids": [source_note["id"]],
+        "default_conflict_strategy": "rename",
+        "conflict_overrides": {source_note["id"]: "overwrite"},
+    }
+    preview = await client.post(
+        f"/api/v1/projects/{target_id}/notes/import/project/preview", json=request
+    )
+    assert preview.status_code == 200
+    assert preview.json()["merge_category_count"] == 1
+    result = await client.post(
+        f"/api/v1/projects/{target_id}/notes/import/project", json=request
+    )
+    assert result.status_code == 200
+    assert result.json()["overwritten_note_count"] == 1
+    overwritten = (await client.get(f"/api/v1/notes/{target_note['id']}")).json()
+    assert overwritten["content"] == "新"
+    assert overwritten["is_locked"] is True
+    assert overwritten["order_index"] == target_note["order_index"]
+
+
+@pytest.mark.asyncio
+async def test_import_notes_from_project_rejects_foreign_selection_atomically(
+    client: AsyncClient,
+) -> None:
+    source_id, _ = await _create_project(client)
+    target_id, _ = await _create_project(client)
+    third_id, _ = await _create_project(client)
+    foreign = (
+        await client.post(
+            f"/api/v1/projects/{third_id}/notes", json={"title": "foreign"}
+        )
+    ).json()
+    before = (await client.get(f"/api/v1/projects/{target_id}/notes")).json()
+    response = await client.post(
+        f"/api/v1/projects/{target_id}/notes/import/project",
+        json={
+            "source_project_id": source_id,
+            "selected_note_ids": [foreign["id"]],
+        },
+    )
+    assert response.status_code == 400
+    assert (await client.get(f"/api/v1/projects/{target_id}/notes")).json() == before
+
+
+@pytest.mark.asyncio
 async def test_toggle_note_lock(client: AsyncClient) -> None:
     project_id, _ = await _create_project(client)
     create = await client.post(

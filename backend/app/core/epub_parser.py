@@ -199,18 +199,37 @@ def _parse_spine_chapter(
     if not bodies:
         raise ValueError("EPUB 章节缺少正文")
     body = bodies[0]
-    for element in body.xpath(".//*[self::script or self::style or self::nav]"):
-        element.drop_tree()
+    for element in body.xpath(
+        ".//*[local-name()='script' or local-name()='style' or local-name()='nav']"
+    ):
+        _remove_element(element)
     content = _body_text(body)
     if not content:
         raise ValueError("EPUB 章节没有可读取的正文")
     title = (
         toc_titles.get(path)
         or _first_text(document.xpath("//*[local-name()='title']/text()"))
-        or _first_text(body.xpath(".//*[self::h1 or self::h2 or self::h3][1]//text()"))
+        or _first_text(
+            body.xpath(
+                "(.//*[local-name()='h1' or local-name()='h2' or local-name()='h3'])[1]//text()"
+            )
+        )
         or PurePosixPath(path).stem
     )
     return ParsedChapter(title=title, content=content, word_count=_count_words(content))
+
+
+def _remove_element(element: etree._Element) -> None:
+    parent = element.getparent()
+    if parent is None:
+        return
+    if element.tail:
+        previous = element.getprevious()
+        if previous is None:
+            parent.text = f"{parent.text or ''}{element.tail}"
+        else:
+            previous.tail = f"{previous.tail or ''}{element.tail}"
+    parent.remove(element)
 
 
 def _body_text(body: etree._Element) -> str:

@@ -130,16 +130,14 @@ def test_normalize_merged_documents_uses_continuous_chapter_numbering() -> None:
     ]
 
 
-def test_epub_declared_size_limit_is_100_mebibytes() -> None:
+def test_epub_validates_content_bounds_and_namespaced_xhtml() -> None:
     assert MAX_EPUB_SIZE == 100 * 1024 * 1024
 
-
-def test_epub_rejects_malformed_xhtml() -> None:
-    content = _make_single_chapter_epub("<html><body><p>Unclosed")
+    malformed_content = _make_single_chapter_epub("<html><body><p>Unclosed")
 
     with pytest.raises(ValueError, match="EPUB XHTML 格式无效"):
         normalize_document_import(
-            [ImportDocument("broken.epub", content)],
+            [ImportDocument("broken.epub", malformed_content)],
             split_mode="auto",
             chunk_size=800,
             structure_mode="separate_volumes",
@@ -147,9 +145,29 @@ def test_epub_rejects_malformed_xhtml() -> None:
             chapter_title_mode="preserve",
         )
 
+    namespaced_content = _make_single_chapter_epub(
+        """<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>
+        <p>Before<nav>Navigation</nav>After</p><script>Ignored script</script>
+        <style>Ignored style</style><h1>Heading fallback</h1><p>Visible</p>
+        </body></html>""",
+    )
 
-def test_epub2_ncx_title_overrides_xhtml_title() -> None:
-    content = _make_single_chapter_epub(
+    result = normalize_document_import(
+        [ImportDocument("namespaced.epub", namespaced_content)],
+        split_mode="auto",
+        chunk_size=800,
+        structure_mode="separate_volumes",
+        merged_volume_title=None,
+        chapter_title_mode="preserve",
+    )
+
+    chapter = result.volumes[0].chapters[0]
+    assert chapter.title == "Heading fallback"
+    assert chapter.content == "BeforeAfter\nHeading fallback\nVisible"
+
+
+def test_epub_reads_ncx_and_normalized_archive_paths() -> None:
+    ncx_content = _make_single_chapter_epub(
         "<html><head><title>Fallback chapter</title></head><body><p>Body</p></body></html>",
         opf_extra='<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />',
         spine_attributes='toc="ncx"',
@@ -163,7 +181,7 @@ def test_epub2_ncx_title_overrides_xhtml_title() -> None:
     )
 
     result = normalize_document_import(
-        [ImportDocument("book.epub", content)],
+        [ImportDocument("book.epub", ncx_content)],
         split_mode="auto",
         chunk_size=800,
         structure_mode="separate_volumes",
@@ -173,15 +191,13 @@ def test_epub2_ncx_title_overrides_xhtml_title() -> None:
 
     assert result.volumes[0].chapters[0].title == "NCX chapter"
 
-
-def test_epub_reads_members_with_normalized_archive_paths() -> None:
-    content = _make_single_chapter_epub(
+    normalized_content = _make_single_chapter_epub(
         "<html><head><title>Normalized</title></head><body><p>Body</p></body></html>",
         prefix="./",
     )
 
     result = normalize_document_import(
-        [ImportDocument("book.epub", content)],
+        [ImportDocument("book.epub", normalized_content)],
         split_mode="auto",
         chunk_size=800,
         structure_mode="separate_volumes",

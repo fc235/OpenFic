@@ -354,10 +354,10 @@ function ChapterEditorContent({
 
   const handleSave = useCallback(
     async (isManualSave = false) => {
-      if (!editor) return;
+      if (!editor) return "skipped" as const;
       if (isAgentLocked) {
         showLockedToast();
-        return;
+        return "skipped" as const;
       }
 
       const draftToSave = latestDraftRef.current;
@@ -368,7 +368,7 @@ function ChapterEditorContent({
         hasChangesRef.current = true;
         setHasChanges(true);
         showContentLimitToast(draftToSave.content);
-        return;
+        return "skipped" as const;
       }
       rejectedContentRef.current = null;
       const currentWordCount = wordsCount(draftToSave.content);
@@ -396,8 +396,10 @@ function ChapterEditorContent({
         if (isManualSave) {
           toast.success(t("writing.saved"));
         }
+        return "saved" as const;
       } catch {
         syncDirtyStateFromEditor(editor);
+        return "failed" as const;
       } finally {
         setIsSaving(false);
       }

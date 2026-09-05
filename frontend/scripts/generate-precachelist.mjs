@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -74,6 +75,7 @@ function prepareFontAssets() {
   const files = walk(distDir, []);
 
   for (const file of files) {
+    if (file.endsWith(`${sep}font-faces.css`)) continue;
     const dot = file.lastIndexOf(".");
     const ext = dot >= 0 ? file.slice(dot).toLowerCase() : "";
 
@@ -110,7 +112,14 @@ const precacheList = files
   })
   .sort();
 
-const output = `self.__PRECACHE_LIST = ${JSON.stringify(precacheList, null, 2)};\n`;
+const buildHash = createHash("sha256");
+for (const file of files) {
+  if (file.endsWith(`${sep}sw-precache.js`)) continue;
+  buildHash.update(relative(distDir, file).split(sep).join("/"));
+  buildHash.update(readFileSync(file));
+}
+const buildId = buildHash.digest("hex").slice(0, 16);
+const output = `self.__OPENFIC_BUILD_ID = ${JSON.stringify(buildId)};\nself.__PRECACHE_LIST = ${JSON.stringify(precacheList, null, 2)};\n`;
 
 writeFileSync(join(distDir, "sw-precache.js"), output);
 console.log(`precache list generated: ${precacheList.length} entries`);

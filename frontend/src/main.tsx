@@ -63,7 +63,7 @@ const queryClient = new QueryClient({
 const FRONTEND_VERSION = __OPENFIC_FRONTEND_VERSION__;
 const INITIALIZATION_TIMEOUT_MS = 30_000;
 
-type InitializationStage = "preferences" | "auth" | "health" | "settings" | "tiktoken" | "socket";
+type InitializationStage = "preferences" | "auth" | "health" | "settings" | "socket";
 
 class InitializationError extends Error {
   readonly stage: InitializationStage;
@@ -138,7 +138,6 @@ function getInitializationErrorMessage(error: unknown): string {
     auth: i18n.t("common.initializationAuth"),
     health: i18n.t("common.initializationHealth"),
     settings: i18n.t("common.initializationSettings"),
-    tiktoken: i18n.t("common.initializationTiktoken"),
     socket: i18n.t("common.initializationSocket"),
   };
 
@@ -257,6 +256,9 @@ function Root() {
         }
 
         void initErrorTelemetry();
+        void preloadTiktokenEncoding().catch((tokenError) => {
+          console.warn("Token encoding initialization failed; using estimation:", tokenError);
+        });
 
         const [, settings] = await Promise.all([
           withInitializationStage("health", checkHealth()),
@@ -267,7 +269,6 @@ function Root() {
               queryFn: fetchSettings,
             }),
           ),
-          withInitializationStage("tiktoken", preloadTiktokenEncoding()),
           withInitializationStage(
             "socket",
             connectSocket({ timeoutMs: INITIALIZATION_TIMEOUT_MS }),

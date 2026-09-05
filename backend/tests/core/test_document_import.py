@@ -109,6 +109,61 @@ def test_normalize_ordered_txt_zip_epub_documents() -> None:
         "Spine Two",
     ]
 
+    assert MAX_EPUB_SIZE == 100 * 1024 * 1024
+    malformed_content = _make_single_chapter_epub("<html><body><p>Unclosed")
+    with pytest.raises(ValueError, match="EPUB XHTML 格式无效"):
+        normalize_document_import(
+            [ImportDocument("broken.epub", malformed_content)],
+            split_mode="auto",
+            chunk_size=800,
+            structure_mode="separate_volumes",
+            merged_volume_title=None,
+            chapter_title_mode="preserve",
+        )
+
+    namespaced_content = _make_single_chapter_epub(
+        """<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>
+        <p>Before<nav>Navigation</nav>After</p><script>Ignored script</script>
+        <style>Ignored style</style><h1>Heading fallback</h1><p>Visible</p>
+        </body></html>""",
+    )
+    ncx_content = _make_single_chapter_epub(
+        "<html><head><title>Fallback chapter</title></head><body><p>Body</p></body></html>",
+        opf_extra='<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />',
+        spine_attributes='toc="ncx"',
+        extra_entries={
+            "toc.ncx": """<?xml version=\"1.0\"?>
+            <ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\">
+              <navMap><navPoint><navLabel><text>NCX chapter</text></navLabel>
+              <content src=\"one.xhtml\" /></navPoint></navMap>
+            </ncx>""",
+        },
+    )
+    normalized_content = _make_single_chapter_epub(
+        "<html><head><title>Normalized</title></head><body><p>Body</p></body></html>",
+        prefix="./",
+    )
+    for content, expected_title, expected_content in [
+        (
+            namespaced_content,
+            "Heading fallback",
+            "BeforeAfter\nHeading fallback\nVisible",
+        ),
+        (ncx_content, "NCX chapter", "Body"),
+        (normalized_content, "Normalized", "Body"),
+    ]:
+        parsed = normalize_document_import(
+            [ImportDocument("book.epub", content)],
+            split_mode="auto",
+            chunk_size=800,
+            structure_mode="separate_volumes",
+            merged_volume_title=None,
+            chapter_title_mode="preserve",
+        )
+        chapter = parsed.volumes[0].chapters[0]
+        assert chapter.title == expected_title
+        assert chapter.content == expected_content
+
 
 def test_normalize_merged_documents_uses_continuous_chapter_numbering() -> None:
     result = normalize_document_import(
@@ -128,81 +183,3 @@ def test_normalize_merged_documents_uses_continuous_chapter_numbering() -> None:
         "第 1 章 雨夜",
         "第 2 章 归途",
     ]
-
-
-def test_epub_validates_content_bounds_and_namespaced_xhtml() -> None:
-    assert MAX_EPUB_SIZE == 100 * 1024 * 1024
-
-    malformed_content = _make_single_chapter_epub("<html><body><p>Unclosed")
-
-    with pytest.raises(ValueError, match="EPUB XHTML 格式无效"):
-        normalize_document_import(
-            [ImportDocument("broken.epub", malformed_content)],
-            split_mode="auto",
-            chunk_size=800,
-            structure_mode="separate_volumes",
-            merged_volume_title=None,
-            chapter_title_mode="preserve",
-        )
-
-    namespaced_content = _make_single_chapter_epub(
-        """<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>
-        <p>Before<nav>Navigation</nav>After</p><script>Ignored script</script>
-        <style>Ignored style</style><h1>Heading fallback</h1><p>Visible</p>
-        </body></html>""",
-    )
-
-    result = normalize_document_import(
-        [ImportDocument("namespaced.epub", namespaced_content)],
-        split_mode="auto",
-        chunk_size=800,
-        structure_mode="separate_volumes",
-        merged_volume_title=None,
-        chapter_title_mode="preserve",
-    )
-
-    chapter = result.volumes[0].chapters[0]
-    assert chapter.title == "Heading fallback"
-    assert chapter.content == "BeforeAfter\nHeading fallback\nVisible"
-
-
-def test_epub_reads_ncx_and_normalized_archive_paths() -> None:
-    ncx_content = _make_single_chapter_epub(
-        "<html><head><title>Fallback chapter</title></head><body><p>Body</p></body></html>",
-        opf_extra='<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />',
-        spine_attributes='toc="ncx"',
-        extra_entries={
-            "toc.ncx": """<?xml version=\"1.0\"?>
-            <ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\">
-              <navMap><navPoint><navLabel><text>NCX chapter</text></navLabel>
-              <content src=\"one.xhtml\" /></navPoint></navMap>
-            </ncx>""",
-        },
-    )
-
-    result = normalize_document_import(
-        [ImportDocument("book.epub", ncx_content)],
-        split_mode="auto",
-        chunk_size=800,
-        structure_mode="separate_volumes",
-        merged_volume_title=None,
-        chapter_title_mode="preserve",
-    )
-
-    assert result.volumes[0].chapters[0].title == "NCX chapter"
-
-    normalized_content = _make_single_chapter_epub(
-        "<html><head><title>Normalized</title></head><body><p>Body</p></body></html>",
-        prefix="./",
-    )
-
-    result = normalize_document_import(
-        [ImportDocument("book.epub", normalized_content)],
-        split_mode="auto",
-        chunk_size=800,
-        structure_mode="separate_volumes",
-        merged_volume_title=None,
-        chapter_title_mode="preserve",
-    )
-
-    assert result.volumes[0].chapters[0].title == "Normalized"

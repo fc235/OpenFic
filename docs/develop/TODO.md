@@ -52,7 +52,8 @@
 
 ### T04 标明并处理已有功能分支，避免重复开发
 
-- [ ] 分别检查已有分支的验收状态，再安排集成并更新功能清单。
+- [x] 分别检查已有分支的验收状态，再安排集成并更新功能清单。
+- **完成记录（2026-09-05）**：快捷新会话和 Agent 消息导航分支均已合并到 `codex/todo-improvements`；合并后的前端类型检查、Lint 和生产构建通过。
 - **证据**：本次 `git worktree list` 显示主分支仍在 `cb27371`；消息导航位于 `codex/agent-message-navigator`，提交 `3a58b00`；快捷新会话位于 `feat/quick-start-session`，提交 `5eb4cce`。两者不能当成主目录已具备的功能。
 - **建议**：在集成记录中分别列出实现、已验证项和遗留项。消息导航分支仍应补充人工悬停预览、真实流式输出时跳转的验收记录；此前 ResizeObserver 提示应先定位来源，不直接归因于新功能或忽略。本次未重新验收快捷新会话分支。
 - **定位**：`.worktrees/agent-message-navigator`、`.worktrees/quick-start-session`；对应 `docs/superpowers/specs/` 设计文件。
@@ -61,7 +62,8 @@
 
 ### T05 完成跨项目笔记导入与同级混合排序
 
-- [ ] 按已确认规格实现跨项目选择导入、冲突预览和笔记树持久化排序。
+- [x] 按已确认规格实现跨项目选择导入、冲突预览和笔记树持久化排序。
+- **完成记录（2026-09-05）**：增加 `order_index` 迁移、原子混合排序接口、跨项目选择预览/事务复制及前端导入入口；来源项目只读，新笔记使用默认状态，覆盖保留目标状态与位置。保留原 Markdown/ZIP 导入。仅增加 3 条数据安全相关后端测试。
 - **证据**：`note-import-dialog.tsx` 仍只接受 `.md/.zip`，`notes.py` 仍提供文件导入链路；`note-tree.tsx` 已有拖拽到分类的移动逻辑，但不等于同级任意位置排序。设计文件已明确两者的差别。
 - **建议**：直接沿用已确认的选择规则、同名分类合并、同名笔记重命名/覆盖/跳过、后端事务复制、分类与笔记共享顺序。复用现有 dnd-kit，补齐落点和排序持久化，不另建排序模式。
 - **定位**：`docs/superpowers/specs/2026-09-04-cross-project-note-import-and-ordering-design.md`；`frontend/src/features/writing/components/note-import-dialog.tsx`、`note-tree.tsx`；`backend/app/storage/services/note_transfer_service.py`、`note_service.py`；`backend/app/storage/models/note.py`、`backend/app/api/routers/notes.py`。
@@ -116,7 +118,8 @@
 
 ### T11 笔记文件导入增加请求竞争保护和真实进度状态
 
-- [ ] 防止旧预览覆盖新选择，并避免导入开始就显示 100%。
+- [x] 防止旧预览覆盖新选择，并避免导入开始就显示 100%。
+- **完成记录（2026-09-05）**：文件和项目预览均使用请求序号丢弃迟到响应；关闭窗口会使在途响应失效；导入阶段改为不定进度，不再显示虚假 100%。
 - **证据**：`note-import-dialog.tsx` 的 `handleFileSelect` 异步完成后直接更新预览，没有请求序号或取消检查；关闭时 `resetState()` 不能阻止已发出的 Promise 回写；文件选择区加载中仍可再次触发。导入中 `<Progress value={100}>` 是固定值。
 - **影响**：存在快速选择 A/B 或关闭后旧响应回写的竞态风险；尚未动态复现，需最小验证后确定修复细节。
 - **建议**：使用请求序号/AbortSignal 保护预览结果；禁止不适合并发的操作。没有真实进度接口时只显示不定进度，成功响应后才显示完成。可随 T05 一并处理。

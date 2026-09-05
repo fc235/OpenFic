@@ -122,7 +122,7 @@ class ImportDocument:
     content: bytes
 ```
 
-For each document call `parse_project_import`; when a text file returns only the parser's default `第一卷`, replace that volume title with the file stem. Separate mode concatenates volume lists. Merge mode flattens chapters into one `ParsedVolume`; continuous numbering strips a leading Chinese/Arabic `第...章` token and emits `第 {index} 章` plus the remaining title.
+For each document call `parse_project_import`; when a text file returns only the parser's default `第一卷`, replace that volume title with the file stem. Separate mode concatenates volume lists. Merge mode initially flattens chapters into one `ParsedVolume` while preserving titles; continuous numbering is added only after its failing test in Step 7.
 
 - [ ] **Step 5: Declare and lock the direct XML dependency**
 
@@ -350,7 +350,7 @@ Record the new-project and existing-project entry components, shared parser, EPU
 - [ ] **Step 5: Run final focused verification**
 
 ```powershell
-python -m pytest tests/api/test_import.py -q
+python -m pytest tests/core/test_document_import.py tests/api/test_import.py -q
 ruff check app/core/document_import.py app/core/epub_parser.py app/core/project_import.py app/api/routers/import_router.py app/api/routers/chapters.py app/storage/services/project_chapter_import_service.py app/storage/repos/volume_repo.py tests/api/test_import.py
 ```
 

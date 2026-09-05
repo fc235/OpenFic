@@ -400,6 +400,36 @@ export function AgentMessages({
       scrollContainerRef.current ?? contentRef.current?.closest(".ai-sidebar-messages");
     if (!(container instanceof HTMLElement)) return;
 
+    const syncActiveNavigation = (atBottom: boolean) => {
+      const navigationItems = navigationItemsRef.current;
+      if (navigationItems.length === 0) return;
+
+      let activeBlockIndex = navigationItems[0].blockIndex;
+      if (atBottom) {
+        activeBlockIndex = navigationItems[navigationItems.length - 1].blockIndex;
+      } else {
+        const viewportTop = container.getBoundingClientRect().top + 16;
+        const firstRenderedElement =
+          contentRef.current?.querySelector<HTMLElement>("[data-index]");
+        const firstRenderedIndex = Number(firstRenderedElement?.dataset.index ?? 0);
+        for (const item of navigationItems) {
+          const element = contentRef.current?.querySelector<HTMLElement>(
+            `[data-index="${item.blockIndex}"]`,
+          );
+          if (!element) {
+            if (item.blockIndex < firstRenderedIndex) activeBlockIndex = item.blockIndex;
+            else break;
+            continue;
+          }
+          if (element.getBoundingClientRect().top > viewportTop) break;
+          activeBlockIndex = item.blockIndex;
+        }
+      }
+      setVisibleStartIndex((current) =>
+        current === activeBlockIndex ? current : activeBlockIndex,
+      );
+    };
+
     const handleScroll = () => {
       const nextViewport = {
         scrollHeight: container.scrollHeight,
@@ -407,25 +437,7 @@ export function AgentMessages({
         clientHeight: container.clientHeight,
       };
       const atBottom = shouldFollowBottom(nextViewport);
-      const navigationItems = navigationItemsRef.current;
-      if (navigationItems.length > 0) {
-        let activeBlockIndex = navigationItems[0].blockIndex;
-        if (atBottom) {
-          activeBlockIndex = navigationItems[navigationItems.length - 1].blockIndex;
-        } else {
-          const viewportTop = container.getBoundingClientRect().top + 16;
-          for (const item of navigationItems) {
-            const element = contentRef.current?.querySelector<HTMLElement>(
-              `[data-index="${item.blockIndex}"]`,
-            );
-            if (!element || element.getBoundingClientRect().top > viewportTop) break;
-            activeBlockIndex = item.blockIndex;
-          }
-        }
-        setVisibleStartIndex((current) =>
-          current === activeBlockIndex ? current : activeBlockIndex,
-        );
-      }
+      syncActiveNavigation(atBottom);
       if (isAtBottomRef.current !== atBottom) {
         isAtBottomRef.current = atBottom;
         onAtBottomChange?.(atBottom);
@@ -450,17 +462,18 @@ export function AgentMessages({
       setScrollViewportHeight((current) =>
         current === container.clientHeight ? current : container.clientHeight,
       );
+      const atBottom = shouldFollowBottom({
+        scrollHeight: container.scrollHeight,
+        scrollTop: container.scrollTop,
+        clientHeight: container.clientHeight,
+      });
+      syncActiveNavigation(atBottom);
       const previousFrame = resizeFrameRef.current;
       resizeFrameRef.current = nextFrame;
       if (isRestoringLoadedSessionBottomRef.current) {
         scheduleLoadedSessionBottomRestore();
         return;
       }
-      const atBottom = shouldFollowBottom({
-        scrollHeight: container.scrollHeight,
-        scrollTop: container.scrollTop,
-        clientHeight: container.clientHeight,
-      });
       if (isAtBottomRef.current !== atBottom) {
         isAtBottomRef.current = atBottom;
         onAtBottomChange?.(atBottom);

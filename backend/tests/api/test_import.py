@@ -545,6 +545,38 @@ async def test_document_import_endpoints_preserve_order_and_placement(
     preview = response.json()
     assert [volume["title"] for volume in preview["volumes"]][:2] == ["first", "ZIP卷"]
     response = await client.post(
+        "/api/v1/import/documents/preview",
+        files=files[:1],
+        data={"structure_mode": "merge_volume", "merged_volume_title": "  合集  "},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["volumes"][0]["title"] == "合集"
+    for invalid_title in (" ", "x" * 201):
+        response = await client.post(
+            "/api/v1/import/documents/preview",
+            files=files[:1],
+            data={"structure_mode": "merge_volume", "merged_volume_title": invalid_title},
+        )
+        assert response.status_code == 400, response.text
+    response = await client.post(
+        "/api/v1/import/documents/preview",
+        files=[
+            *files[:1],
+            (
+                "files",
+                ("images.zip", _build_zip([("cover.png", b"image")]), "application/zip"),
+            ),
+        ],
+    )
+    assert response.status_code == 400, response.text
+    assert "images.zip" in response.json()["detail"]
+    response = await client.post(
+        "/api/v1/import/documents/preview",
+        files=[("files", ("too-long.txt", ("内容" * 100001).encode(), "text/plain"))],
+    )
+    assert response.status_code == 400, response.text
+    assert "内容超出限制" in response.json()["detail"]
+    response = await client.post(
         "/api/v1/import/documents/confirm", files=files, data={"title": "多文档"}
     )
     assert response.status_code == 201, response.text

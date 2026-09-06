@@ -12,7 +12,13 @@ from app.core.project_import import (
     get_import_suffix,
     parse_project_import,
 )
-from app.core.txt_parser import ParseResult, ParsedChapter, ParsedVolume
+from app.core.txt_parser import (
+    VOLUME_TITLE_PATTERN,
+    ParseResult,
+    ParsedChapter,
+    ParsedVolume,
+    decode_text_content,
+)
 
 ImportStructureMode = Literal["separate_volumes", "merge_volume"]
 ChapterTitleMode = Literal["preserve", "continuous_numbering"]
@@ -42,24 +48,33 @@ def normalize_document_import(
     if chapter_title_mode not in {"preserve", "continuous_numbering"}:
         raise ValueError("章节标题模式无效")
 
-    parsed_results = [
-        _rename_default_text_volume(
+    parsed_results: list[ParseResult] = []
+    for document in documents:
+        result = parse_project_import(
             document.filename,
-            parse_project_import(
+            document.content,
+            split_mode=split_mode,
+            chunk_size=chunk_size,
+        )
+        if result.chapter_count == 0:
+            raise ValueError(f"文件 {document.filename} 未能识别任何章节")
+        parsed_results.append(
+            _rename_default_text_volume(
                 document.filename,
                 document.content,
-                split_mode=split_mode,
-                chunk_size=chunk_size,
-            ),
+                result,
+                split_mode,
+            )
         )
-        for document in documents
-    ]
 
     if structure_mode == "separate_volumes":
         volumes = [
             volume for result in parsed_results for volume in result.volumes
         ]
     else:
+        merged_volume_title = (merged_volume_title or "").strip()
+        if not 1 <= len(merged_volume_title) <= 200:
+            raise ValueError("合并卷标题必须在 1 到 200 个字符之间")
         chapters = [
             chapter
             for result in parsed_results
@@ -84,11 +99,17 @@ def normalize_document_import(
     )
 
 
-def _rename_default_text_volume(filename: str, result: ParseResult) -> ParseResult:
+def _rename_default_text_volume(
+    filename: str,
+    content: bytes,
+    result: ParseResult,
+    split_mode: ImportSplitMode,
+) -> ParseResult:
     if (
         get_import_suffix(filename) not in SUPPORTED_TEXT_SUFFIXES
         or len(result.volumes) != 1
         or result.volumes[0].title != "第一卷"
+        or (split_mode == "auto" and _has_explicit_volume_title(content))
     ):
         return result
 
@@ -99,6 +120,11 @@ def _rename_default_text_volume(filename: str, result: ParseResult) -> ParseResu
         chapter_count=result.chapter_count,
         detected_encoding=result.detected_encoding,
     )
+
+
+def _has_explicit_volume_title(content: bytes) -> bool:
+    text, _encoding = decode_text_content(content)
+    return bool(VOLUME_TITLE_PATTERN.search(text))
 
 
 def _combined_encoding(results: Sequence[ParseResult]) -> str:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from io import BytesIO
 from pathlib import PurePosixPath
 import posixpath
+from urllib.parse import unquote
 import zipfile
 
 from lxml import etree
@@ -33,16 +34,17 @@ def parse_epub_content(filename: str, content: bytes) -> ParseResult:
             manifest = _manifest_paths(package, opf_path)
             spine = _spine_item_ids(package)
             toc_titles = _toc_titles(archive, members, package, manifest)
-            chapters = [
-                _parse_spine_chapter(
+            chapters = []
+            for item_id in spine:
+                chapter = _parse_spine_chapter(
                     archive,
                     members,
                     manifest,
                     item_id,
                     toc_titles,
                 )
-                for item_id in spine
-            ]
+                if chapter is not None:
+                    chapters.append(chapter)
     except (zipfile.BadZipFile, zipfile.LargeZipFile, RuntimeError, OSError) as exc:
         raise ValueError("EPUB 无法读取，请确认文件没有损坏或加密") from exc
 
@@ -166,13 +168,17 @@ def _toc_titles(
                     )
                 )
                 if sources and title:
-                    titles[_resolve_path(base_path, sources[0])] = title
+                    titles.setdefault(_resolve_path(base_path, sources[0]), title)
             continue
-        for link in document.xpath("//*[local-name()='a'][@href]"):
-            target = _resolve_path(base_path, link.get("href"))
-            title = " ".join(link.itertext()).strip()
-            if title:
-                titles[target] = title
+        for nav in document.xpath(
+            "//*[local-name()='nav' and "
+            "@*[local-name()='type' and normalize-space(.)='toc']]"
+        ):
+            for link in nav.xpath(".//*[local-name()='a'][@href]"):
+                target = _resolve_path(base_path, link.get("href"))
+                title = " ".join(link.itertext()).strip()
+                if title:
+                    titles.setdefault(target, title)
     return titles
 
 
@@ -182,10 +188,12 @@ def _parse_spine_chapter(
     manifest: dict[str, tuple[str, etree._Element]],
     item_id: str,
     toc_titles: dict[str, str],
-) -> ParsedChapter:
+) -> ParsedChapter | None:
     if item_id not in manifest:
         raise ValueError("EPUB 阅读顺序引用了缺失资源")
-    path, _item = manifest[item_id]
+    path, item = manifest[item_id]
+    if item.get("media-type") not in {"application/xhtml+xml", "text/html"}:
+        return None
     member = members.get(path)
     if member is None:
         raise ValueError("EPUB 阅读顺序资源不存在")
@@ -197,7 +205,7 @@ def _parse_spine_chapter(
         raise ValueError("EPUB 资源无法读取") from exc
     bodies = document.xpath("//*[local-name()='body']")
     if not bodies:
-        raise ValueError("EPUB 章节缺少正文")
+        return None
     body = bodies[0]
     for element in body.xpath(
         ".//*[local-name()='script' or local-name()='style' or local-name()='nav']"
@@ -205,7 +213,7 @@ def _parse_spine_chapter(
         _remove_element(element)
     content = _body_text(body)
     if not content:
-        raise ValueError("EPUB 章节没有可读取的正文")
+        return None
     title = (
         toc_titles.get(path)
         or _first_text(document.xpath("//*[local-name()='title']/text()"))
@@ -251,14 +259,13 @@ def _resolve_path(base_path: str, href: str) -> str:
 
 
 def _normalize_archive_path(path: str) -> str:
-    normalized = path.replace("\\", "/")
-    pure_path = PurePosixPath(normalized)
-    if pure_path.is_absolute() or ".." in pure_path.parts:
+    normalized = unquote(path).replace("\\", "/")
+    if "\x00" in normalized or normalized.startswith("/"):
         raise ValueError("EPUB 包含不安全的文件路径")
-    parts = [part for part in pure_path.parts if part not in {"", "."}]
-    if not parts:
+    normalized = posixpath.normpath(normalized)
+    if normalized in {"", ".", ".."} or normalized.startswith("../"):
         raise ValueError("EPUB 包含无效的文件路径")
-    return "/".join(parts)
+    return normalized
 
 
 def _first_text(values: list[str]) -> str:

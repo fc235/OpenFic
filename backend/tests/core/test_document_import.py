@@ -89,6 +89,35 @@ def _make_single_chapter_epub(
     return output.getvalue()
 
 
+def _make_epub_with_spine_entries(
+    *,
+    opf_path: str,
+    entries: dict[str, str],
+    manifest: str,
+    spine: str,
+) -> bytes:
+    output = BytesIO()
+    with zipfile.ZipFile(output, "w") as archive:
+        archive.writestr(
+            "META-INF/container.xml",
+            f"""<?xml version="1.0"?>
+            <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+              <rootfiles><rootfile full-path="{opf_path}" /></rootfiles>
+            </container>""",
+        )
+        archive.writestr(
+            "OPS/content.opf",
+            f"""<?xml version="1.0"?>
+            <package xmlns="http://www.idpf.org/2007/opf">
+              <metadata><title>Edge Cases</title></metadata>
+              <manifest>{manifest}</manifest><spine>{spine}</spine>
+            </package>""",
+        )
+        for path, value in entries.items():
+            archive.writestr(path, value)
+    return output.getvalue()
+
+
 def test_normalize_ordered_txt_zip_epub_documents() -> None:
     result = normalize_document_import(
         [
@@ -135,7 +164,9 @@ def test_normalize_ordered_txt_zip_epub_documents() -> None:
             "toc.ncx": """<?xml version=\"1.0\"?>
             <ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\">
               <navMap><navPoint><navLabel><text>NCX chapter</text></navLabel>
-              <content src=\"one.xhtml\" /></navPoint></navMap>
+              <content src=\"one.xhtml\" /></navPoint>
+              <navPoint><navLabel><text>NCX fragment</text></navLabel>
+              <content src=\"one.xhtml#part\" /></navPoint></navMap>
             </ncx>""",
         },
     )
@@ -163,6 +194,82 @@ def test_normalize_ordered_txt_zip_epub_documents() -> None:
         chapter = parsed.volumes[0].chapters[0]
         assert chapter.title == expected_title
         assert chapter.content == expected_content
+
+    escaped_path_content = _make_epub_with_spine_entries(
+        opf_path="OPS/../OPS/content.opf",
+        entries={
+            "OPS/chapter one.xhtml": "<html><body><p>Decoded path</p></body></html>",
+        },
+        manifest='<item id="one" href="chapter%20one.xhtml" media-type="application/xhtml+xml" />',
+        spine='<itemref idref="one" />',
+    )
+    image_and_text_content = _make_epub_with_spine_entries(
+        opf_path="OPS/content.opf",
+        entries={
+            "OPS/cover.xhtml": "<html><body><img src=\"cover.jpg\" /></body></html>",
+            "OPS/main.xhtml": "<html><body><p>Readable chapter</p></body></html>",
+        },
+        manifest="""
+            <item id="cover" href="cover.xhtml" media-type="application/xhtml+xml" />
+            <item id="main" href="main.xhtml" media-type="application/xhtml+xml" />
+        """,
+        spine='<itemref idref="cover" /><itemref idref="main" />',
+    )
+    image_only_content = _make_epub_with_spine_entries(
+        opf_path="OPS/content.opf",
+        entries={
+            "OPS/cover.xhtml": "<html><body><img src=\"cover.jpg\" /></body></html>",
+        },
+        manifest='<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml" />',
+        spine='<itemref idref="cover" />',
+    )
+    toc_content = _make_epub_with_spine_entries(
+        opf_path="OPS/content.opf",
+        entries={
+            "OPS/one.xhtml": "<html><head><title>HTML title</title></head><body><p>Body</p></body></html>",
+            "OPS/nav.xhtml": """
+                <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body>
+                  <nav epub:type="toc"><a href="one.xhtml">Main TOC title</a><a href="one.xhtml#part">Fragment title</a></nav>
+                  <nav epub:type="landmarks"><a href="one.xhtml">Landmark title</a></nav>
+                  <nav epub:type="page-list"><a href="one.xhtml">Page title</a></nav>
+                </body></html>""",
+        },
+        manifest="""
+            <item id="one" href="one.xhtml" media-type="application/xhtml+xml" />
+            <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav" />
+        """,
+        spine='<itemref idref="one" />',
+    )
+    for content, expected_title in [
+        (escaped_path_content, "chapter one"),
+        (image_and_text_content, "main"),
+        (toc_content, "Main TOC title"),
+    ]:
+        parsed = normalize_document_import([ImportDocument("book.epub", content)])
+        assert [chapter.title for chapter in parsed.volumes[0].chapters] == [expected_title]
+
+    with pytest.raises(ValueError, match="EPUB 没有可读取的正文"):
+        normalize_document_import([ImportDocument("cover.epub", image_only_content)])
+    unsafe_encoded_path = _make_epub_with_spine_entries(
+        opf_path="OPS/content.opf",
+        entries={},
+        manifest='<item id="one" href="%2e%2e/%2e%2e/out.xhtml" media-type="application/xhtml+xml" />',
+        spine='<itemref idref="one" />',
+    )
+    with pytest.raises(ValueError, match="EPUB.*文件路径"):
+        normalize_document_import([ImportDocument("unsafe.epub", unsafe_encoded_path)])
+
+    explicit_volume = normalize_document_import(
+        [ImportDocument("named.txt", "第一卷\n第一章 正文".encode())]
+    )
+    assert explicit_volume.volumes[0].title == "第一卷"
+    with pytest.raises(ValueError, match="images.zip"):
+        normalize_document_import(
+            [
+                ImportDocument("valid.txt", "第一章 正文".encode()),
+                ImportDocument("images.zip", _make_zip().replace(b"chapter.txt", b"cover__.png")),
+            ]
+        )
 
 
 def test_normalize_merged_documents_uses_continuous_chapter_numbering() -> None:

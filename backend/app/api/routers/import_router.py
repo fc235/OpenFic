@@ -25,6 +25,7 @@ from app.core.document_import import (
     ImportStructureMode,
     normalize_document_import,
 )
+from app.core.editor_content_limits import validate_editor_content
 from app.core.project_import import (
     DEFAULT_IMPORT_CHUNK_SIZE,
     MAX_IMPORT_CHUNK_SIZE,
@@ -95,6 +96,9 @@ async def _read_document_import(
         )
         if not result.volumes:
             raise ValueError("文件解析失败，未能识别任何章节")
+        for volume in result.volumes:
+            for chapter in volume.chapters:
+                validate_editor_content(chapter.content)
         return result
     except zipfile.BadZipFile as exc:
         raise HTTPException(400, "压缩包格式无效") from exc

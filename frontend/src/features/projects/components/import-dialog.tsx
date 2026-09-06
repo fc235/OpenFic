@@ -68,6 +68,7 @@ export function ImportDialog({ open, onOpenChange, onSuccess }: ImportDialogProp
   // 项目信息
   const [title, setTitle] = useState("");
   const [titleEdited, setTitleEdited] = useState(false);
+  const [mergedVolumeTitleEdited, setMergedVolumeTitleEdited] = useState(false);
   const [description, setDescription] = useState("");
   const [cover, setCover] = useState<File | null>(null);
 
@@ -90,6 +91,7 @@ export function ImportDialog({ open, onOpenChange, onSuccess }: ImportDialogProp
     setExpandedVolumeIndexes([0]);
     setTitle("");
     setTitleEdited(false);
+    setMergedVolumeTitleEdited(false);
     setDescription("");
     setCover(null);
     setImportResult(null);
@@ -121,17 +123,27 @@ export function ImportDialog({ open, onOpenChange, onSuccess }: ImportDialogProp
       if (!titleEdited) {
         setTitle(nextFiles[0] ? getImportFileTitle(nextFiles[0].name) : "");
       }
+
+      if (!mergedVolumeTitleEdited) {
+        setOptions((currentOptions) => ({
+          ...currentOptions,
+          mergedVolumeTitle: nextFiles[0] ? getImportFileTitle(nextFiles[0].name) : "",
+        }));
+      }
     },
-    [invalidatePreview, titleEdited],
+    [invalidatePreview, mergedVolumeTitleEdited, titleEdited],
   );
 
   const handleOptionsChange = useCallback(
     (nextOptions: DocumentImportOptions) => {
       invalidatePreview();
+      if (nextOptions.mergedVolumeTitle !== options.mergedVolumeTitle) {
+        setMergedVolumeTitleEdited(true);
+      }
       setOptions(nextOptions);
       setError(null);
     },
-    [invalidatePreview],
+    [invalidatePreview, options.mergedVolumeTitle],
   );
 
   const handlePreview = useCallback(async () => {

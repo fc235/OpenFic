@@ -44,6 +44,11 @@ interface SortableFileRowProps {
   onRemove: () => void;
 }
 
+interface ImportFileRow {
+  file: File;
+  id: string;
+}
+
 function SortableFileRow({ file, fileId, index, disabled, onRemove }: SortableFileRowProps) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -113,7 +118,7 @@ function SortableFileRow({ file, fileId, index, disabled, onRemove }: SortableFi
 export function ImportFileList({ files, onChange, disabled = false }: ImportFileListProps) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
-  const idsByFile = useRef(new Map<File, string>());
+  const fileRowsRef = useRef<ImportFileRow[]>([]);
   const nextId = useRef(0);
   const [fileError, setFileError] = useState<string | null>(null);
   const sensors = useSensors(
@@ -121,15 +126,29 @@ export function ImportFileList({ files, onChange, disabled = false }: ImportFile
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const getFileId = useCallback((file: File) => {
-    const existingId = idsByFile.current.get(file);
-    if (existingId) return existingId;
-
+  const createFileRow = useCallback((file: File): ImportFileRow => {
     nextId.current += 1;
-    const fileId = `import-file-${nextId.current}`;
-    idsByFile.current.set(file, fileId);
-    return fileId;
+    return { file, id: `import-file-${nextId.current}` };
   }, []);
+
+  if (
+    fileRowsRef.current.length !== files.length ||
+    fileRowsRef.current.some((row, index) => row.file !== files[index])
+  ) {
+    const usedRows = new Set<ImportFileRow>();
+    fileRowsRef.current = files.map((file) => {
+      const existingRow = fileRowsRef.current.find(
+        (row) => !usedRows.has(row) && row.file === file,
+      );
+      if (existingRow) {
+        usedRows.add(existingRow);
+        return existingRow;
+      }
+      return createFileRow(file);
+    });
+  }
+
+  const fileRows = fileRowsRef.current;
 
   const addFiles = useCallback(
     (addedFiles: File[]) => {
@@ -138,19 +157,20 @@ export function ImportFileList({ files, onChange, disabled = false }: ImportFile
         setFileError(t("import.documents.invalidFileTotal"));
         return;
       }
-      supportedFiles.forEach(getFileId);
       if (supportedFiles.length > 0) {
         setFileError(
           supportedFiles.length === addedFiles.length
             ? null
             : t("import.documents.invalidFileType"),
         );
-        onChange([...files, ...supportedFiles]);
+        const addedRows = supportedFiles.map(createFileRow);
+        fileRowsRef.current = [...fileRowsRef.current, ...addedRows];
+        onChange([...files, ...addedRows.map((row) => row.file)]);
       } else if (addedFiles.length > 0) {
         setFileError(t("import.documents.invalidFileType"));
       }
     },
-    [files, getFileId, onChange, t],
+    [createFileRow, files, onChange, t],
   );
 
   const handleInputChange = useCallback(
@@ -173,16 +193,16 @@ export function ImportFileList({ files, onChange, disabled = false }: ImportFile
     ({ active, over }: DragEndEvent) => {
       if (!over || active.id === over.id) return;
 
-      const oldIndex = files.findIndex((file) => getFileId(file) === active.id);
-      const newIndex = files.findIndex((file) => getFileId(file) === over.id);
+      const oldIndex = fileRowsRef.current.findIndex((row) => row.id === active.id);
+      const newIndex = fileRowsRef.current.findIndex((row) => row.id === over.id);
       if (oldIndex >= 0 && newIndex >= 0) {
-        onChange(arrayMove(files, oldIndex, newIndex));
+        const reorderedRows = arrayMove(fileRowsRef.current, oldIndex, newIndex);
+        fileRowsRef.current = reorderedRows;
+        onChange(reorderedRows.map((row) => row.file));
       }
     },
-    [files, getFileId, onChange],
+    [onChange],
   );
-
-  const fileIds = files.map(getFileId);
 
   return (
     <Flex
@@ -243,23 +263,26 @@ export function ImportFileList({ files, onChange, disabled = false }: ImportFile
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={fileIds}
+              items={fileRows.map((row) => row.id)}
               strategy={verticalListSortingStrategy}
             >
               <Flex
                 direction="column"
                 className="import-dialog-file-list"
               >
-                {files.map((file, index) => (
+                {fileRows.map((row, index) => (
                   <SortableFileRow
-                    key={fileIds[index]}
-                    file={file}
-                    fileId={fileIds[index]}
+                    key={row.id}
+                    file={row.file}
+                    fileId={row.id}
                     index={index}
                     disabled={disabled}
-                    onRemove={() =>
-                      onChange(files.filter((_, currentIndex) => currentIndex !== index))
-                    }
+                    onRemove={() => {
+                      fileRowsRef.current = fileRowsRef.current.filter(
+                        (_, currentIndex) => currentIndex !== index,
+                      );
+                      onChange(fileRowsRef.current.map((currentRow) => currentRow.file));
+                    }}
                   />
                 ))}
               </Flex>

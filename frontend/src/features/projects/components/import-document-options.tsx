@@ -49,6 +49,7 @@ export function ImportDocumentOptions({
           onValueChange={(splitMode) => updateOptions({ splitMode: splitMode as ImportSplitMode })}
           size="2"
           disabled={disabled}
+          aria-label={t("import.splitMode")}
           className="import-dialog-split-mode"
         >
           <SegmentedControl.Item value="auto">{t("import.autoSplit")}</SegmentedControl.Item>
@@ -60,6 +61,7 @@ export function ImportDocumentOptions({
         <Box>
           <Text
             as="label"
+            htmlFor="document-import-chunk-size"
             size="2"
             weight="medium"
             mb="1"
@@ -68,6 +70,7 @@ export function ImportDocumentOptions({
             {t("import.chunkSize")}
           </Text>
           <TextField.Root
+            id="document-import-chunk-size"
             type="number"
             min={1}
             max={MAX_IMPORT_CHUNK_SIZE}
@@ -111,6 +114,7 @@ export function ImportDocumentOptions({
           }
           size="2"
           disabled={disabled}
+          aria-label={t("import.documents.structureMode")}
           className="import-dialog-split-mode"
         >
           <SegmentedControl.Item value="separate_volumes">
@@ -130,6 +134,7 @@ export function ImportDocumentOptions({
           <Box>
             <Text
               as="label"
+              htmlFor="document-import-merged-volume-title"
               size="2"
               weight="medium"
               mb="1"
@@ -138,6 +143,7 @@ export function ImportDocumentOptions({
               {t("import.documents.mergedVolumeTitle")}
             </Text>
             <TextField.Root
+              id="document-import-merged-volume-title"
               value={value.mergedVolumeTitle}
               placeholder={t("import.documents.mergedVolumeTitlePlaceholder")}
               disabled={disabled}
@@ -160,6 +166,7 @@ export function ImportDocumentOptions({
               }
               size="2"
               disabled={disabled}
+              aria-label={t("import.documents.chapterTitleMode")}
               className="import-dialog-split-mode"
             >
               <SegmentedControl.Item value="preserve">

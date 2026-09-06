@@ -109,7 +109,10 @@ function buildDocumentImportFormData(files: File[], options: DocumentImportOptio
     formData.append("files", file);
   }
   formData.append("split_mode", options.splitMode);
-  formData.append("chunk_size", String(options.chunkSize));
+  formData.append(
+    "chunk_size",
+    String(options.splitMode === "manual" ? options.chunkSize : DEFAULT_IMPORT_CHUNK_SIZE),
+  );
   formData.append("structure_mode", options.structureMode);
   formData.append("chapter_title_mode", options.chapterTitleMode);
 

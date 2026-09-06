@@ -2,9 +2,10 @@
 
 ## Scope
 
-- EPUB archive paths now URL-decode before normalization, permit relative `..`
-  segments that remain inside the archive, and reject only paths that normalize
-  outside its root.
+- EPUB URI references URL-decode once before normalization, permit relative
+  `..` segments that remain inside the archive, and reject only paths that
+  normalize outside its root. ZIP member names are normalized independently
+  without URI decoding, preventing percent-name collisions.
 - Spine entries without readable textual body content (including image-only
   cover/media entries) are skipped. An EPUB still fails when every spine entry
   is unreadable.
@@ -34,4 +35,23 @@ git diff --check
 ```
 
 Results: `25 passed`; Ruff reported `All checks passed!`; `git diff --check`
+returned successfully.
+
+## Percent-name follow-up
+
+ZIP member normalization now preserves literal percent sequences while URI
+resolution decodes a reference exactly once. The consolidated core test covers
+both `OPS/chapter%20one.xhtml` and `OPS/chapter one.xhtml`, reached by
+`chapter%2520one.xhtml` and `chapter%20one.xhtml` manifest references,
+respectively. This verifies distinct member keys and correct URI lookup.
+
+Follow-up verification from `backend`:
+
+```powershell
+python -m pytest tests/core/test_document_import.py tests/api/test_import.py -q
+ruff check app/core/epub_parser.py tests/core/test_document_import.py
+git diff --check
+```
+
+Results: `27 passed`; Ruff reported `All checks passed!`; `git diff --check`
 returned successfully.

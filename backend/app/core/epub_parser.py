@@ -5,6 +5,7 @@ from __future__ import annotations
 from io import BytesIO
 from pathlib import PurePosixPath
 import posixpath
+import re
 from urllib.parse import unquote
 import zipfile
 
@@ -64,7 +65,7 @@ def _archive_members(archive: zipfile.ZipFile) -> dict[str, zipfile.ZipInfo]:
     total_size = 0
     members: dict[str, zipfile.ZipInfo] = {}
     for info in archive.infolist():
-        normalized = _normalize_archive_path(info.filename)
+        normalized = _normalize_archive_member_path(info.filename)
         total_size += max(info.file_size, 0)
         if total_size > MAX_EPUB_SIZE:
             raise ValueError("EPUB 解压后的总大小超过限制（最大 100MB）")
@@ -108,7 +109,7 @@ def _container_opf_path(container: etree._Element) -> str:
     paths = container.xpath("//*[local-name()='rootfile']/@full-path")
     if not paths:
         raise ValueError("EPUB 缺少包定义路径")
-    return _normalize_archive_path(paths[0])
+    return _normalize_uri_path(paths[0])
 
 
 def _manifest_paths(package: etree._Element, opf_path: str) -> dict[str, tuple[str, etree._Element]]:
@@ -118,7 +119,7 @@ def _manifest_paths(package: etree._Element, opf_path: str) -> dict[str, tuple[s
         item_id = item.get("id")
         href = item.get("href")
         if item_id and href:
-            manifest[item_id] = (_resolve_path(base_path, href), item)
+            manifest[item_id] = (_resolve_uri_path(base_path, href), item)
     if not manifest:
         raise ValueError("EPUB 缺少资源清单")
     return manifest
@@ -168,14 +169,14 @@ def _toc_titles(
                     )
                 )
                 if sources and title:
-                    titles.setdefault(_resolve_path(base_path, sources[0]), title)
+                    titles.setdefault(_resolve_uri_path(base_path, sources[0]), title)
             continue
         for nav in document.xpath(
             "//*[local-name()='nav' and "
             "@*[local-name()='type' and normalize-space(.)='toc']]"
         ):
             for link in nav.xpath(".//*[local-name()='a'][@href]"):
-                target = _resolve_path(base_path, link.get("href"))
+                target = _resolve_uri_path(base_path, link.get("href"))
                 title = " ".join(link.itertext()).strip()
                 if title:
                     titles.setdefault(target, title)
@@ -253,14 +254,26 @@ def _body_text(body: etree._Element) -> str:
     )
 
 
-def _resolve_path(base_path: str, href: str) -> str:
+def _resolve_uri_path(base_path: str, href: str) -> str:
     href_path = href.split("#", 1)[0]
-    return _normalize_archive_path(posixpath.join(base_path, href_path))
+    return _normalize_path(posixpath.join(base_path, unquote(href_path)))
 
 
-def _normalize_archive_path(path: str) -> str:
-    normalized = unquote(path).replace("\\", "/")
-    if "\x00" in normalized or normalized.startswith("/"):
+def _normalize_uri_path(path: str) -> str:
+    return _normalize_path(unquote(path))
+
+
+def _normalize_archive_member_path(path: str) -> str:
+    return _normalize_path(path)
+
+
+def _normalize_path(path: str) -> str:
+    normalized = path.replace("\\", "/")
+    if (
+        "\x00" in normalized
+        or normalized.startswith("/")
+        or re.match(r"^[A-Za-z]:(?:/|$)", normalized)
+    ):
         raise ValueError("EPUB 包含不安全的文件路径")
     normalized = posixpath.normpath(normalized)
     if normalized in {"", ".", ".."} or normalized.startswith("../"):

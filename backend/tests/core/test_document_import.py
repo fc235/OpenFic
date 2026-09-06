@@ -203,6 +203,18 @@ def test_normalize_ordered_txt_zip_epub_documents() -> None:
         manifest='<item id="one" href="chapter%20one.xhtml" media-type="application/xhtml+xml" />',
         spine='<itemref idref="one" />',
     )
+    percent_member_content = _make_epub_with_spine_entries(
+        opf_path="OPS/content.opf",
+        entries={
+            "OPS/chapter%20one.xhtml": "<html><head><title>Percent member</title></head><body><p>Percent</p></body></html>",
+            "OPS/chapter one.xhtml": "<html><head><title>Space member</title></head><body><p>Space</p></body></html>",
+        },
+        manifest="""
+            <item id="percent" href="chapter%2520one.xhtml" media-type="application/xhtml+xml" />
+            <item id="space" href="chapter%20one.xhtml" media-type="application/xhtml+xml" />
+        """,
+        spine='<itemref idref="percent" /><itemref idref="space" />',
+    )
     image_and_text_content = _make_epub_with_spine_entries(
         opf_path="OPS/content.opf",
         entries={
@@ -247,6 +259,13 @@ def test_normalize_ordered_txt_zip_epub_documents() -> None:
     ]:
         parsed = normalize_document_import([ImportDocument("book.epub", content)])
         assert [chapter.title for chapter in parsed.volumes[0].chapters] == [expected_title]
+    percent_member_result = normalize_document_import(
+        [ImportDocument("book.epub", percent_member_content)]
+    )
+    assert [chapter.title for chapter in percent_member_result.volumes[0].chapters] == [
+        "Percent member",
+        "Space member",
+    ]
 
     with pytest.raises(ValueError, match="EPUB 没有可读取的正文"):
         normalize_document_import([ImportDocument("cover.epub", image_only_content)])

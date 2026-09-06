@@ -212,7 +212,30 @@
     "next": "Next",
     "startImport": "Start Import",
     "finish": "Done",
-    "close": "Close"
+    "close": "Close",
+    "documents": {
+      "supportedFormats": "Supported formats: .txt, .md, .zip, .epub",
+      "invalidFileType": "Only .txt, .md, .zip, and .epub files are supported",
+      "addFiles": "Add files",
+      "removeFile": "Remove {{name}}",
+      "reorderFiles": "Reorder files",
+      "fileOrderHint": "Files are imported in this order.",
+      "structureMode": "Import structure",
+      "separateVolumes": "Separate volumes",
+      "mergeVolume": "Merge into one volume",
+      "mergedVolumeTitle": "Merged volume title",
+      "mergedVolumeTitlePlaceholder": "Enter volume title",
+      "mergedVolumeTitleRequired": "Enter a title for the merged volume",
+      "chapterTitleMode": "Chapter titles",
+      "preserveChapterTitles": "Preserve titles",
+      "continuousNumbering": "Continuous numbering",
+      "placement": "Placement",
+      "append": "Append to the end",
+      "afterVolume": "After a volume",
+      "invalidFileTotal": "Select between 1 and 100 files",
+      "progress": "Importing {{current}} of {{total}}",
+      "resultSummary": "Imported {{chapters}} chapters across {{volumes}} volumes"
+    }
   },
   "projectForm": {
     "editProject": "Edit Project",

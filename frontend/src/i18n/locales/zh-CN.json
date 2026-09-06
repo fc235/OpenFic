@@ -232,6 +232,8 @@
       "placement": "插入位置",
       "append": "追加到末尾",
       "afterVolume": "指定分卷之后",
+      "afterCurrentVolume": "在已冻结的当前分卷之后",
+      "createdVolumes": "创建卷数",
       "invalidFileTotal": "请选择 1 到 100 个文件",
       "progress": "正在导入第 {{current}} / {{total}} 个文件",
       "resultSummary": "已导入 {{chapters}} 个章节，创建 {{volumes}} 个分卷"

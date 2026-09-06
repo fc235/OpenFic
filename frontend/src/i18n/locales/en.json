@@ -232,6 +232,8 @@
       "placement": "Placement",
       "append": "Append to the end",
       "afterVolume": "After a volume",
+      "afterCurrentVolume": "After the captured current volume",
+      "createdVolumes": "Volumes created",
       "invalidFileTotal": "Select between 1 and 100 files",
       "progress": "Importing {{current}} of {{total}}",
       "resultSummary": "Imported {{chapters}} chapters across {{volumes}} volumes"

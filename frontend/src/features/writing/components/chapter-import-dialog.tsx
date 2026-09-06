@@ -1,4 +1,14 @@
-import { Badge, Box, Button, Card, Dialog, Flex, Progress, Text } from "@radix-ui/themes";
+import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  Dialog,
+  Flex,
+  Progress,
+  ScrollArea,
+  Text,
+} from "@radix-ui/themes";
 import { AlertCircle, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -28,6 +38,10 @@ interface ChapterImportDialogProps {
 type Step = "select" | "options" | "preview" | "importing";
 type Placement = "append" | "after_volume";
 
+function getImportFileTitle(filename: string): string {
+  return filename.replace(/\.(txt|md|zip|epub)$/i, "");
+}
+
 /** Import ordered document files as new volumes in an existing writing project. */
 export function ChapterImportDialog({
   open,
@@ -42,6 +56,7 @@ export function ChapterImportDialog({
   const [step, setStep] = useState<Step>("select");
   const [files, setFiles] = useState<File[]>([]);
   const [options, setOptions] = useState<DocumentImportOptions>(DEFAULT_DOCUMENT_IMPORT_OPTIONS);
+  const [mergedVolumeTitleEdited, setMergedVolumeTitleEdited] = useState(false);
   const [placement, setPlacement] = useState<Placement>("append");
   const [preview, setPreview] = useState<ImportPreviewResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +67,7 @@ export function ChapterImportDialog({
     setStep("select");
     setFiles([]);
     setOptions(DEFAULT_DOCUMENT_IMPORT_OPTIONS);
+    setMergedVolumeTitleEdited(false);
     setPlacement("append");
     setPreview(null);
     setError(null);
@@ -75,18 +91,27 @@ export function ChapterImportDialog({
     (nextFiles: File[]) => {
       invalidatePreview();
       setFiles(nextFiles);
+      if (!mergedVolumeTitleEdited) {
+        setOptions((currentOptions) => ({
+          ...currentOptions,
+          mergedVolumeTitle: nextFiles[0] ? getImportFileTitle(nextFiles[0].name) : "",
+        }));
+      }
       setError(null);
     },
-    [invalidatePreview],
+    [invalidatePreview, mergedVolumeTitleEdited],
   );
 
   const handleOptionsChange = useCallback(
     (nextOptions: DocumentImportOptions) => {
       invalidatePreview();
+      if (nextOptions.mergedVolumeTitle !== options.mergedVolumeTitle) {
+        setMergedVolumeTitleEdited(true);
+      }
       setOptions(nextOptions);
       setError(null);
     },
-    [invalidatePreview],
+    [invalidatePreview, options.mergedVolumeTitle],
   );
 
   const handlePlacementChange = useCallback(
@@ -209,7 +234,7 @@ export function ChapterImportDialog({
                 { value: "append", label: t("import.documents.append") },
                 {
                   value: "after_volume",
-                  label: t("import.documents.afterVolume"),
+                  label: t("import.documents.afterCurrentVolume"),
                   disabled: !currentVolumeId,
                 },
               ]}
@@ -240,7 +265,7 @@ export function ChapterImportDialog({
                 size="2"
                 color="gray"
               >
-                {t("import.documents.separateVolumes")}
+                {t("import.documents.createdVolumes")}
               </Text>
               <Text
                 size="5"
@@ -284,37 +309,66 @@ export function ChapterImportDialog({
             className="import-dialog-preview-panel"
             style={{ height: "clamp(180px, 30vh, 260px)" }}
           >
-            <Flex
-              direction="column"
-              gap="2"
-              p="3"
-            >
-              {preview?.volumes.map((volume, volumeIndex) => (
-                <Box key={`${volumeIndex}-${volume.title}`}>
-                  <Text
-                    size="2"
-                    weight="medium"
-                  >
-                    {volume.title}
-                  </Text>
-                  <Flex
-                    gap="2"
-                    wrap="wrap"
-                    mt="1"
-                  >
-                    {volume.chapters.map((chapter, chapterIndex) => (
+            <ScrollArea style={{ height: "100%" }}>
+              <Flex
+                direction="column"
+                gap="3"
+                p="3"
+              >
+                {preview?.volumes.map((volume, volumeIndex) => (
+                  <Box key={`${volumeIndex}-${volume.title}`}>
+                    <Flex
+                      align="center"
+                      justify="between"
+                      gap="2"
+                      mb="1"
+                    >
+                      <Text
+                        size="2"
+                        weight="medium"
+                      >
+                        {volume.title}
+                      </Text>
                       <Badge
-                        key={`${chapterIndex}-${chapter.title}`}
                         size="1"
                         color="gray"
                       >
-                        {chapter.title}
+                        {volume.chapter_count} {t("projects.chapters")}
                       </Badge>
-                    ))}
-                  </Flex>
-                </Box>
-              ))}
-            </Flex>
+                    </Flex>
+                    <Flex direction="column">
+                      {volume.chapters.map((chapter, chapterIndex) => (
+                        <Box
+                          key={`${chapterIndex}-${chapter.title}`}
+                          py="2"
+                          style={
+                            chapterIndex < volume.chapters.length - 1
+                              ? { borderBottom: "1px solid var(--gray-a4)" }
+                              : undefined
+                          }
+                        >
+                          <Text
+                            size="2"
+                            weight="medium"
+                          >
+                            {chapter.title}
+                          </Text>
+                          <Text
+                            as="p"
+                            size="1"
+                            color="gray"
+                            mt="1"
+                            style={{ whiteSpace: "pre-wrap" }}
+                          >
+                            {chapter.content_preview}
+                          </Text>
+                        </Box>
+                      ))}
+                    </Flex>
+                  </Box>
+                ))}
+              </Flex>
+            </ScrollArea>
           </Box>
         </Flex>
       );

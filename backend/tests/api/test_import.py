@@ -743,3 +743,78 @@ async def test_import_documents_rolls_back_all_files(
     assert response.status_code == 400, response.text
     assert (await client.get("/api/v1/projects")).json()["total"] == projects_before
     assert (await session.execute(activity_count)).scalar_one() == before_activity_count
+
+
+@pytest.mark.asyncio
+async def test_existing_project_document_import_runs_index_integration_once_after_success(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.retrieval import chapter_index, index_status
+
+    project_response = await client.post(
+        "/api/v1/import/documents/confirm",
+        files=[("files", ("original.txt", "原有正文".encode(), "text/plain"))],
+        data={"title": "原有项目"},
+    )
+    assert project_response.status_code == 201, project_response.text
+    project_id = project_response.json()["project_id"]
+    index_project_ids: list[str] = []
+    status_project_ids: list[str] = []
+
+    async def record_auto_index(_session: AsyncSession, *, project_id: str) -> None:
+        index_project_ids.append(project_id)
+
+    def record_index_status(_session: AsyncSession, project_id: str) -> None:
+        status_project_ids.append(project_id)
+
+    monkeypatch.setattr(chapter_index, "safe_maybe_enqueue_auto_index", record_auto_index)
+    monkeypatch.setattr(index_status, "schedule_emit_index_status", record_index_status)
+
+    response = await client.post(
+        f"/api/v1/projects/{project_id}/chapter-imports",
+        files=[("files", ("added.txt", "新增正文".encode(), "text/plain"))],
+    )
+
+    assert response.status_code == 201, response.text
+    assert index_project_ids == [project_id]
+    assert status_project_ids == [project_id]
+
+
+@pytest.mark.asyncio
+async def test_failed_existing_project_document_import_does_not_run_index_integration(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.retrieval import chapter_index, index_status
+
+    project_response = await client.post(
+        "/api/v1/import/documents/confirm",
+        files=[("files", ("original.txt", "原有正文".encode(), "text/plain"))],
+        data={"title": "原有项目"},
+    )
+    assert project_response.status_code == 201, project_response.text
+    project_id = project_response.json()["project_id"]
+    index_project_ids: list[str] = []
+    status_project_ids: list[str] = []
+
+    async def record_auto_index(_session: AsyncSession, *, project_id: str) -> None:
+        index_project_ids.append(project_id)
+
+    def record_index_status(_session: AsyncSession, project_id: str) -> None:
+        status_project_ids.append(project_id)
+
+    monkeypatch.setattr(chapter_index, "safe_maybe_enqueue_auto_index", record_auto_index)
+    monkeypatch.setattr(index_status, "schedule_emit_index_status", record_index_status)
+
+    response = await client.post(
+        f"/api/v1/projects/{project_id}/chapter-imports",
+        files=[
+            ("files", ("valid.txt", "有效正文".encode(), "text/plain")),
+            ("files", ("oversized.txt", ("内容" * 100001).encode(), "text/plain")),
+        ],
+    )
+
+    assert response.status_code == 400, response.text
+    assert index_project_ids == []
+    assert status_project_ids == []

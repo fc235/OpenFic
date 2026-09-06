@@ -18,6 +18,7 @@ import { ImportDocumentOptions } from "@/features/projects/components/import-doc
 import { ImportFileList } from "@/features/projects/components/import-file-list";
 import {
   DEFAULT_DOCUMENT_IMPORT_OPTIONS,
+  getDocumentImportErrorMessage,
   previewDocuments,
   validateDocumentImportOptions,
   type DocumentImportOptions,
@@ -158,7 +159,7 @@ export function ChapterImportDialog({
       setStep("preview");
     } catch (reason) {
       if (requestSequence !== previewRequestSequence.current) return;
-      setError(reason instanceof Error ? reason.message : t("import.parseFailed"));
+      setError(getDocumentImportErrorMessage(reason, t("import.parseFailed")));
     }
   }, [files, options, optionsValidationKey, t]);
 
@@ -181,7 +182,7 @@ export function ChapterImportDialog({
       onImported(result.first_chapter_id);
       handleOpenChange(false);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("import.importFailed"));
+      setError(getDocumentImportErrorMessage(reason, t("import.importFailed")));
       setStep("preview");
     }
   }, [

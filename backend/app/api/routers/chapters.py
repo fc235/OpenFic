@@ -80,6 +80,12 @@ async def import_chapters(
                 placement=placement,
                 after_volume_id=after_volume_id,
             )
+        # Register after the savepoint has completed so the one-shot listener
+        # observes the outer commit, not the savepoint release.
+        from app.retrieval.index_status import schedule_emit_index_status
+
+        schedule_emit_index_status(session, project_id)
+        await background_service.commit_and_notify(session)
     except NotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
     except ValueError as exc:

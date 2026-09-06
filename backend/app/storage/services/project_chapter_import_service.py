@@ -99,6 +99,13 @@ async def import_documents(
     project.word_count += total_word_count
     project.updated_at = datetime.now(UTC)
     await session.flush()
+
+    # Keep batch imports aligned with normal chapter creation: enqueue at the
+    # project level once, then let the caller commit and publish notifications.
+    from app.retrieval.chapter_index import safe_maybe_enqueue_auto_index
+
+    await safe_maybe_enqueue_auto_index(session, project_id=project_id)
+
     return ProjectChapterImportResult(
         first_chapter_id=chapters[0].id,
         created_volume_ids=created_volume_ids,

@@ -26,6 +26,7 @@ import "./import-dialog.css";
 import {
   confirmDocumentProject,
   DEFAULT_DOCUMENT_IMPORT_OPTIONS,
+  getDocumentImportErrorMessage,
   previewDocuments,
   validateDocumentImportOptions,
   type DocumentImportOptions,
@@ -175,7 +176,7 @@ export function ImportDialog({ open, onOpenChange, onSuccess }: ImportDialogProp
       if (requestSequence !== previewRequestSequence.current) return;
 
       console.error("预览失败:", err);
-      setError(err instanceof Error ? err.message : t("import.parseFailed"));
+      setError(getDocumentImportErrorMessage(err, t("import.parseFailed")));
     } finally {
       if (requestSequence === previewRequestSequence.current) {
         setLoading(false);
@@ -227,7 +228,7 @@ export function ImportDialog({ open, onOpenChange, onSuccess }: ImportDialogProp
       onSuccess?.();
     } catch (err) {
       console.error("导入失败:", err);
-      setError(err instanceof Error ? err.message : t("import.importFailed"));
+      setError(getDocumentImportErrorMessage(err, t("import.importFailed")));
       setStep("info");
     } finally {
       setLoading(false);

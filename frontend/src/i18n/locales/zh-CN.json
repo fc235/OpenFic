@@ -226,6 +226,7 @@
       "mergedVolumeTitle": "合并分卷标题",
       "mergedVolumeTitlePlaceholder": "输入分卷标题",
       "mergedVolumeTitleRequired": "请输入合并分卷的标题",
+      "mergedVolumeTitleTooLong": "合并分卷标题长度需为 1 到 200 个字符",
       "chapterTitleMode": "章节标题",
       "preserveChapterTitles": "保留原标题",
       "continuousNumbering": "连续编号",

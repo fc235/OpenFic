@@ -8,7 +8,9 @@ import {
   updateVolume,
 } from "@/lib/api-client";
 import type { VolumeCreate, VolumeUpdate } from "@/lib/chapter.types";
+import type { ProjectListResponse } from "@/lib/project.types";
 
+import { projectsQueryKey } from "../../projects/hooks/use-projects";
 import {
   importDocumentsIntoProject,
   type DocumentImportOptions,
@@ -87,7 +89,22 @@ export function useImportDocumentsIntoProject(projectId: string) {
       placement: DocumentImportPlacement;
       options: DocumentImportOptions;
     }) => importDocumentsIntoProject(projectId, files, placement, options),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      queryClient.setQueriesData<ProjectListResponse>({ queryKey: projectsQueryKey }, (current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          items: current.items.map((project) =>
+            project.id === projectId
+              ? {
+                  ...project,
+                  chapterCount: project.chapterCount + result.chapter_count,
+                  wordCount: project.wordCount + result.total_word_count,
+                }
+              : project,
+          ),
+        };
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["volume-tree", projectId] }),
         queryClient.invalidateQueries({ queryKey: ["project", projectId] }),

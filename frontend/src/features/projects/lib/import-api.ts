@@ -2,6 +2,8 @@
  * 导入 API - 项目文件导入相关接口。
  */
 
+import axios from "axios";
+
 import i18n from "@/i18n";
 import { apiClient, getApiBaseUrl, handleAuthenticationFailure } from "@/lib/api-client";
 
@@ -53,6 +55,7 @@ export type DocumentImportPlacement =
 
 export const DEFAULT_IMPORT_CHUNK_SIZE = 800;
 export const MAX_IMPORT_CHUNK_SIZE = 100_000;
+export const MAX_MERGED_VOLUME_TITLE_LENGTH = 200;
 
 export const DEFAULT_DOCUMENT_IMPORT_OPTIONS: DocumentImportOptions = {
   splitMode: "auto",
@@ -64,7 +67,8 @@ export const DEFAULT_DOCUMENT_IMPORT_OPTIONS: DocumentImportOptions = {
 
 export type DocumentImportOptionsValidationKey =
   | "import.invalidChunkSize"
-  | "import.documents.mergedVolumeTitleRequired";
+  | "import.documents.mergedVolumeTitleRequired"
+  | "import.documents.mergedVolumeTitleTooLong";
 
 /** Return an i18n key for invalid options, or null when they can be submitted. */
 export function validateDocumentImportOptions(
@@ -79,8 +83,12 @@ export function validateDocumentImportOptions(
     return "import.invalidChunkSize";
   }
 
-  if (options.structureMode === "merge_volume" && !options.mergedVolumeTitle.trim()) {
-    return "import.documents.mergedVolumeTitleRequired";
+  if (options.structureMode === "merge_volume") {
+    const mergedVolumeTitle = options.mergedVolumeTitle.trim();
+    if (!mergedVolumeTitle) return "import.documents.mergedVolumeTitleRequired";
+    if (mergedVolumeTitle.length > MAX_MERGED_VOLUME_TITLE_LENGTH) {
+      return "import.documents.mergedVolumeTitleTooLong";
+    }
   }
 
   return null;
@@ -117,10 +125,23 @@ function buildDocumentImportFormData(files: File[], options: DocumentImportOptio
   formData.append("chapter_title_mode", options.chapterTitleMode);
 
   if (options.structureMode === "merge_volume") {
-    formData.append("merged_volume_title", options.mergedVolumeTitle);
+    formData.append("merged_volume_title", options.mergedVolumeTitle.trim());
   }
 
   return formData;
+}
+
+interface ApiErrorPayload {
+  detail?: unknown;
+}
+
+/** Extract FastAPI's business-error detail from document import requests. */
+export function getDocumentImportErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError<ApiErrorPayload>(error)) {
+    const detail = error.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+  }
+  return error instanceof Error ? error.message : fallback;
 }
 
 /** Preview one or more documents in their submitted order. */

@@ -226,6 +226,7 @@
       "mergedVolumeTitle": "Merged volume title",
       "mergedVolumeTitlePlaceholder": "Enter volume title",
       "mergedVolumeTitleRequired": "Enter a title for the merged volume",
+      "mergedVolumeTitleTooLong": "Merged volume title must be 1 to 200 characters",
       "chapterTitleMode": "Chapter titles",
       "preserveChapterTitles": "Preserve titles",
       "continuousNumbering": "Continuous numbering",

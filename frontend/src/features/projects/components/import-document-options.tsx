@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   MAX_IMPORT_CHUNK_SIZE,
+  MAX_MERGED_VOLUME_TITLE_LENGTH,
   type DocumentImportOptions,
   type ChapterTitleMode,
   type ImportSplitMode,
@@ -145,6 +146,7 @@ export function ImportDocumentOptions({
             <TextField.Root
               id="document-import-merged-volume-title"
               value={value.mergedVolumeTitle}
+              maxLength={MAX_MERGED_VOLUME_TITLE_LENGTH}
               placeholder={t("import.documents.mergedVolumeTitlePlaceholder")}
               disabled={disabled}
               onChange={(event) => updateOptions({ mergedVolumeTitle: event.target.value })}

@@ -9,6 +9,12 @@ import {
 } from "@/lib/api-client";
 import type { VolumeCreate, VolumeUpdate } from "@/lib/chapter.types";
 
+import {
+  importDocumentsIntoProject,
+  type DocumentImportOptions,
+  type DocumentImportPlacement,
+} from "../../projects/lib/import-api";
+
 export function useVolumeTree(projectId: string) {
   return useQuery({
     queryKey: ["volume-tree", projectId],
@@ -63,6 +69,29 @@ export function useMoveVolume(projectId: string) {
       moveVolume(volumeId, { newOrder }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["volume-tree", projectId] });
+    },
+  });
+}
+
+/** Import parsed documents into this project and refresh only its affected views. */
+export function useImportDocumentsIntoProject(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      files,
+      placement,
+      options,
+    }: {
+      files: File[];
+      placement: DocumentImportPlacement;
+      options: DocumentImportOptions;
+    }) => importDocumentsIntoProject(projectId, files, placement, options),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["volume-tree", projectId] }),
+        queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
+      ]);
     },
   });
 }

@@ -3,6 +3,12 @@ name: Package
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to package
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -10,7 +16,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.release_tag || github.ref }}
   cancel-in-progress: false
 
 env:
@@ -30,8 +36,13 @@ jobs:
       major_minor: ${{ steps.meta.outputs.major_minor }}
     steps:
       - id: meta
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
-          RELEASE_TAG=${GITHUB_REF#refs/tags/}
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
           VERSION=${RELEASE_TAG#v}
           IMAGE=ghcr.io/${{ github.repository_owner }}/openfic
           IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
@@ -48,6 +59,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.context.outputs.release_tag }}
       - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -85,6 +98,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.context.outputs.release_tag }}
       - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -172,6 +187,8 @@ jobs:
       BUILDX_NO_DEFAULT_ATTESTATIONS: true
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.context.outputs.release_tag }}
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
@@ -256,6 +273,8 @@ jobs:
       ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.electron-builder-cache
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.context.outputs.release_tag }}
       - uses: actions/download-artifact@v8
         with:
           name: frontend-dist
@@ -368,6 +387,8 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.context.outputs.release_tag }}
       - uses: actions/download-artifact@v8
         with:
           pattern: windows-update-*

@@ -575,6 +575,7 @@ export function ChapterSidebar({
         onCreateChapter={handleCreateChapter}
         onCreateVolume={handleCreateVolume}
         onImport={handleOpenChapterImport}
+        onOpenSummary={onOpenSummary}
         onExport={() => setChapterExportOpen(true)}
         onSaveOrder={handleSaveOrder}
         onCancelOrder={handleCancelOrder}

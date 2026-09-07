@@ -8,6 +8,7 @@ import {
   resolveVenvPythonPath,
   startLocalOpenFicBackend,
 } from "./openfic.js";
+import { resolveBundledOpenFicWheel } from "./bundled-backend.js";
 import type { BackendProcessHandle } from "../process.js";
 import type { StartupProgressTracker } from "../startup-progress.js";
 import { appendLog, getLogPath } from "../logging.js";
@@ -55,7 +56,14 @@ export async function installLocalRuntime(webContents: WebContents, installDir: 
       },
     );
 
-    await ensureOpenFicRuntime(python, runtimeDir, app.getVersion(), (step, message) => beginStep(step, message));
+    const bundledWheelPath = await resolveBundledOpenFicWheel(process.resourcesPath, app.getVersion(), app.isPackaged);
+    await ensureOpenFicRuntime(
+      python,
+      runtimeDir,
+      app.getVersion(),
+      (step, message) => beginStep(step, message),
+      bundledWheelPath,
+    );
 
     if (currentStep) markDone(webContents, currentStep);
     appendLog("runtime", "运行环境安装完成");

@@ -338,6 +338,7 @@ export async function ensureOpenFicRuntime(
   runtimeDir: string,
   expectedVersion: string,
   onProgress: (step: OpenFicRuntimeStep, message: string) => void,
+  bundledWheelPath?: string | null,
 ): Promise<{ uvPath: string; venvPythonPath: string }> {
   const venvDir = getVenvDir(runtimeDir);
   const venvPythonPath = getVenvPythonPath(runtimeDir);
@@ -389,15 +390,20 @@ export async function ensureOpenFicRuntime(
       installedVersion ? `OpenFic 后端需要更新：${installedVersion} -> ${expectedVersion}` : "OpenFic 后端尚未安装",
     );
     onProgress("install-openfic", installedVersion ? "更新 OpenFic 后端" : "安装 OpenFic 后端");
-    const packageIndexEnvironments = await getPypiEnvironments();
     const installCommand = createOpenFicInstallCommand(
       venvPythonPath,
       expectedVersion,
       installedVersion === expectedVersion && !openFicCliIsUsable,
+      bundledWheelPath ?? undefined,
     );
-    await runInstallWithIndexFallback(packageIndexEnvironments, (environment) =>
-      runUvInstallWithSystemCertsRetry(uvPath, installCommand.args, runtimeDir, onProgress, environment),
-    );
+    if (bundledWheelPath) {
+      await runUvInstallWithSystemCertsRetry(uvPath, installCommand.args, runtimeDir, onProgress);
+    } else {
+      const packageIndexEnvironments = await getPypiEnvironments();
+      await runInstallWithIndexFallback(packageIndexEnvironments, (environment) =>
+        runUvInstallWithSystemCertsRetry(uvPath, installCommand.args, runtimeDir, onProgress, environment),
+      );
+    }
   }
 
   appendLog("runtime", "OpenFic 运行环境检查完成");

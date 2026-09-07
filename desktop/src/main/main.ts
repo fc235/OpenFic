@@ -8,6 +8,7 @@ import { registerIpc } from "./ipc.js";
 import { throwIfAborted, waitForBackend } from "./health.js";
 import { ensurePortablePython, resolveRuntimeDir } from "./runtime/python.js";
 import { ensureOpenFicRuntime, startLocalOpenFicBackend } from "./runtime/openfic.js";
+import { resolveBundledOpenFicWheel } from "./runtime/bundled-backend.js";
 import { forceStopBackendProcess, stopBackendProcess, type BackendProcessHandle } from "./process.js";
 import { resolveDataDir } from "./data-location.js";
 import { initializeUpdater } from "./updater.js";
@@ -158,15 +159,22 @@ async function startLocalBackend(
   }
 
   let runtimeWasUpdated = false;
-  const runtime = await ensureOpenFicRuntime(python, runtimeDir, app.getVersion(), (step, message) => {
-    runtimeWasUpdated = true;
-    startupProgress.begin({
-      step: "update-openfic",
-      title: step === "install-openfic" ? "更新 OpenFic 后端" : "更新本地运行环境",
-      message,
-      progress: step === "install-openfic" ? 0.45 : 0.38,
-    });
-  });
+  const bundledWheelPath = await resolveBundledOpenFicWheel(process.resourcesPath, app.getVersion(), app.isPackaged);
+  const runtime = await ensureOpenFicRuntime(
+    python,
+    runtimeDir,
+    app.getVersion(),
+    (step, message) => {
+      runtimeWasUpdated = true;
+      startupProgress.begin({
+        step: "update-openfic",
+        title: step === "install-openfic" ? "更新 OpenFic 后端" : "更新本地运行环境",
+        message,
+        progress: step === "install-openfic" ? 0.45 : 0.38,
+      });
+    },
+    bundledWheelPath,
+  );
   throwIfAborted(signal);
   if (!runtimeWasUpdated) {
     startupProgress.update({

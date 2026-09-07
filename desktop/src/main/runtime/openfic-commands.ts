@@ -19,9 +19,11 @@ export function createOpenFicInstallCommand(
   venvPythonPath: string,
   version: string,
   forceReinstall = false,
+  wheelPath?: string,
 ): Omit<SpawnCommand, "command"> {
+  const installTarget = wheelPath ?? `openfic==${version}`;
   return {
-    args: ["pip", "install", "--python", venvPythonPath, ...(forceReinstall ? ["--reinstall"] : []), `openfic==${version}`],
+    args: ["pip", "install", "--python", venvPythonPath, ...(forceReinstall ? ["--reinstall"] : []), installTarget],
   };
 }
 

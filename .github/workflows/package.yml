@@ -79,11 +79,10 @@ jobs:
           path: .pnpm-store
           key: ${{ steps.pnpm-cache.outputs.cache-primary-key }}
 
-  # ---------------------------------------------------------------- pypi
-  pypi:
+  # ---------------------------------------------------------------- backend
+  build-backend:
     needs: [context, build-frontend]
     runs-on: ubuntu-latest
-    environment: pypi
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -140,6 +139,10 @@ jobs:
       - name: 构建后端 Python 包
         working-directory: backend
         run: uv build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: backend-dist
+          path: backend/dist/*.whl
       - uses: actions/cache/save@v5
         if: ${{ steps.pnpm-cache.outputs.cache-hit != 'true' }}
         with:
@@ -150,10 +153,6 @@ jobs:
         with:
           path: .uv-cache
           key: ${{ steps.uv-cache.outputs.cache-primary-key }}
-      - name: 发布到 PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: backend/dist
 
   # ---------------------------------------------------------------- docker
   docker:
@@ -228,7 +227,7 @@ jobs:
 
   # ---------------------------------------------------------------- desktop
   desktop:
-    needs: [context, build-frontend, pypi]
+    needs: [context, build-frontend, build-backend]
     strategy:
       fail-fast: false
       matrix:
@@ -261,6 +260,10 @@ jobs:
         with:
           name: frontend-dist
           path: frontend/dist
+      - uses: actions/download-artifact@v8
+        with:
+          name: backend-dist
+          path: backend/dist
       - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}

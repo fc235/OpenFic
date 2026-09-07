@@ -133,10 +133,9 @@ jobs:
           name: frontend-dist
           path: frontend/dist
       - uses: actions/download-artifact@v8
-        if: matrix.os == 'macos-15'
         with:
           name: backend-dist
-          path: backend-dist
+          path: backend/dist
       - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -160,7 +159,7 @@ jobs:
         if: matrix.os == 'macos-15'
         working-directory: desktop
         timeout-minutes: 20
-        run: pnpm exec electron tests/main/runtime-smoke.mjs ../backend-dist/openfic-*.whl
+        run: pnpm exec electron tests/main/runtime-smoke.mjs ../backend/dist/openfic-*.whl
       - name: Build desktop package
         working-directory: desktop
         run: pnpm exec electron-builder --config electron-builder.yml ${{ matrix.target }} --${{ matrix.arch }} --publish never

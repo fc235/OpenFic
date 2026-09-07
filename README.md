@@ -1,10 +1,10 @@
 # OpenFic
 
-![GitHub Repo stars](https://img.shields.io/github/stars/syrizelink/OpenFic)
+![GitHub Repo stars](https://img.shields.io/github/stars/fc235/OpenFic)
 ![License](https://img.shields.io/badge/License-Apache_2.0-red)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
-![GitHub Release](https://img.shields.io/github/v/release/syrizelink/OpenFic?logo=githubactions&logoColor=white&color=yellow)
-![Release Downloads](https://img.shields.io/github/downloads/syrizelink/OpenFic/total?logo=github&logoColor=white&label=Release%20downloads&color=yellow)
+![GitHub Release](https://img.shields.io/github/v/release/fc235/OpenFic?logo=githubactions&logoColor=white&color=yellow)
+![Release Downloads](https://img.shields.io/github/downloads/fc235/OpenFic/total?logo=github&logoColor=white&label=Release%20downloads&color=yellow)
 ![PyPI - Version](https://img.shields.io/pypi/v/openfic?logo=pypi&logoColor=white&color=green)
 [![交流群](https://img.shields.io/badge/交流群-1105304435-12B7F5?logo=qq&logoColor=white)](https://qun.qq.com/universal-share/share?ac=1&authKey=XxKBo33K1IAy%2FejDsGPWOn51pCNk1Bu1%2F2dtldtWCWSdPGor4tZkaboxgrGkz2BS&busi_data=eyJncm91cENvZGUiOiIxMTA1MzA0NDM1IiwidG9rZW4iOiJCY1NuV2s5d1B2QmI2R0ZiMldMbDE4MVRPV1puMFJlWjZIRlZrRjk4WGUwY2wvdUlaWEFPZ1cvV0lLbWl6d3JwIiwidWluIjoiMjUzMjEyNDQwNCJ9&data=B2VDUuvIYSScsKPwMeFB6txn6fj8I18zG6EKsmsrZDwPpmNCoJ7r5NTLtmUUf58MK3Lw9evkkPg28EglHJNONA&svctype=4&tempid=h5_group_info)
 
@@ -48,6 +48,10 @@
 - 💾**本地持久化**：所有项目数据均保存在本地，零云存储依赖，确保隐私数据安全
 - 🧠**语义化检索**：基于向量的 Agentic RAG，让 Agent 能够在百万字级别的项目中高效检索过往信息
 - ⚖️**成本优先**：多层上下文管理，智能压缩、动态截断、稳定缓存，尽可能降低使用成本
+- 🚀**快捷会话**：可配置共用隐藏指令，并通过新会话按钮自动发送
+- 🧭**消息导航**：在长 Agent 会话中快速定位此前发送的消息
+- 🗂️**笔记整理**：支持跨项目导入笔记，并在分类内拖动调整顺序
+- 📚**文档导入**：支持 TXT、Markdown、ZIP、EPUB 多文件排序导入，可合并到一卷或按文件分卷
 
 
 ## 快速开始
@@ -57,7 +61,7 @@
 如果使用容器方式安装进行自托管是推荐的安装方式。
 
 ```bash
-docker run -d -p 8000:8000 -v "openfic:/data" --name openfic ghcr.io/syrizelink/openfic:latest
+docker run -d -p 8000:8000 -v "openfic:/data" --name openfic ghcr.io/fc235/openfic:latest
 ```
 
 
@@ -81,7 +85,7 @@ openfic serve
 
 ### 🖥桌面应用
 
-前往 [Release Page](https://github.com/syrizelink/OpenFic/releases) 下载桌面应用，在你的系统上原生运行，而无需额外步骤。
+前往 [Release Page](https://github.com/fc235/OpenFic/releases) 下载桌面应用，在你的系统上原生运行，而无需额外步骤。
 
 ## 贡献
 

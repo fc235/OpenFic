@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "openfic"
-version = "0.11.0"
+version = "1.0.0"
 description = "An AI-native, cross-platform writing tool for fiction authors."
 readme = "README.md"
 license = "Apache-2.0"
@@ -23,7 +23,7 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
-urls = { Homepage = "https://github.com/syrizelink/OpenFic", Repository = "https://github.com/syrizelink/OpenFic" }
+urls = { Homepage = "https://github.com/fc235/OpenFic", Repository = "https://github.com/fc235/OpenFic" }
 dependencies = [
     "aiocache>=0.12.3",
     "aiofiles>=22.0",

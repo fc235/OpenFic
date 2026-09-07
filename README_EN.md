@@ -1,10 +1,10 @@
 # OpenFic
 
-![GitHub Repo stars](https://img.shields.io/github/stars/syrizelink/OpenFic)
+![GitHub Repo stars](https://img.shields.io/github/stars/fc235/OpenFic)
 ![License](https://img.shields.io/badge/License-Apache_2.0-red)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
-![GitHub Release](https://img.shields.io/github/v/release/syrizelink/OpenFic?logo=githubactions&logoColor=white&color=yellow)
-![Release Downloads](https://img.shields.io/github/downloads/syrizelink/OpenFic/total?logo=github&logoColor=white&label=Release%20downloads&color=yellow)
+![GitHub Release](https://img.shields.io/github/v/release/fc235/OpenFic?logo=githubactions&logoColor=white&color=yellow)
+![Release Downloads](https://img.shields.io/github/downloads/fc235/OpenFic/total?logo=github&logoColor=white&label=Release%20downloads&color=yellow)
 ![PyPI - Version](https://img.shields.io/pypi/v/openfic?logo=pypi&logoColor=white&color=green)
 [![交流群](https://img.shields.io/badge/交流群-1105304435-12B7F5?logo=qq&logoColor=white)](https://qun.qq.com/universal-share/share?ac=1&authKey=XxKBo33K1IAy%2FejDsGPWOn51pCNk1Bu1%2F2dtldtWCWSdPGor4tZkaboxgrGkz2BS&busi_data=eyJncm91cENvZGUiOiIxMTA1MzA0NDM1IiwidG9rZW4iOiJCY1NuV2s5d1B2QmI2R0ZiMldMbDE4MVRPV1puMFJlWjZIRlZrRjk4WGUwY2wvdUlaWEFPZ1cvV0lLbWl6d3JwIiwidWluIjoiMjUzMjEyNDQwNCJ9&data=B2VDUuvIYSScsKPwMeFB6txn6fj8I18zG6EKsmsrZDwPpmNCoJ7r5NTLtmUUf58MK3Lw9evkkPg28EglHJNONA&svctype=4&tempid=h5_group_info)
 
@@ -44,6 +44,10 @@
 - 💾 **Local persistence**: all project data stays on your machine, with no cloud storage dependency
 - 🧠 **Semantic retrieval**: Agentic RAG built on vector search, so Agents can retrieve information efficiently even in projects with millions of words
 - ⚖️ **Cost-aware context handling**: layered context management, smart compression, dynamic truncation, and stable caching to reduce usage cost
+- 🚀 **Quick sessions**: configure shared hidden instructions and send them automatically with the New Session button
+- 🧭 **Message navigation**: quickly locate messages you previously sent in long Agent sessions
+- 🗂️ **Note organization**: import notes across projects and reorder them within categories by dragging
+- 📚 **Document import**: sort and import TXT, Markdown, ZIP, and EPUB files, merging them into one volume or splitting by file
 
 ## Quick Start
 
@@ -52,7 +56,7 @@
 If you are self-hosting, Docker is the recommended way to run OpenFic.
 
 ```bash
-docker run -d -p 8000:8000 -v "openfic:/data" --name openfic ghcr.io/syrizelink/openfic:latest
+docker run -d -p 8000:8000 -v "openfic:/data" --name openfic ghcr.io/fc235/openfic:latest
 ```
 
 ### 🐍 Python pip
@@ -74,7 +78,7 @@ openfic serve
 
 ### 🖥 Desktop App
 
-Download the desktop app from [the Release Page](https://github.com/syrizelink/OpenFic/releases) and run it natively on your system.
+Download the desktop app from [the Release Page](https://github.com/fc235/OpenFic/releases) and run it natively on your system.
 
 ## Contributing
 

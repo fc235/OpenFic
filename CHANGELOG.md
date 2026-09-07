@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.0](https://github.com/fc235/OpenFic/compare/v0.11.0...v1.0.0) (2026-09-07)
+
+### ✨ 新功能
+
+* 支持共用隐藏指令与可选的新会话快捷入口
+* 支持 Agent 历史消息快速定位
+* 支持跨项目笔记导入及分类内拖动排序
+* 支持 TXT、Markdown、ZIP、EPUB 多文档导入、排序、合卷与分卷
+
+### 🐛 问题修复
+
+* 桌面安装包内置同版本后端，避免安装到错误的 OpenFic 包
+* 完善文档导入后的项目统计刷新与 EPUB 路径兼容性
+
 ## [0.11.0](https://github.com/syrizelink/OpenFic/compare/v0.10.2...v0.11.0) (2026-08-30)
 
 

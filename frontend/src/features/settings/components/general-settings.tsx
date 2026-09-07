@@ -4,12 +4,13 @@
  * 通用设置面板，包含语言、主题、字体设置。
  */
 
-import { Box, Flex, Text, TextField, SegmentedControl } from "@radix-ui/themes";
+import { Box, Flex, SegmentedControl, Switch, Text, TextArea, TextField } from "@radix-ui/themes";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { LabeledSelect } from "@/components/select";
+import { toast } from "@/components/toast";
 import { supportedLanguages, type LanguageCode } from "@/i18n";
 
 import type { Settings, ThemeMode } from "../lib/settings.types";
@@ -133,6 +134,11 @@ export function GeneralSettings({
   isSaving = false,
 }: GeneralSettingsProps) {
   const { t } = useTranslation();
+  const [quickStartPromptDraft, setQuickStartPromptDraft] = useState(settings.quickStartPrompt);
+
+  useEffect(() => {
+    setQuickStartPromptDraft(settings.quickStartPrompt);
+  }, [settings.quickStartPrompt]);
 
   /** 更新语言 */
   const handleLanguageChange = (language: string) => {
@@ -162,6 +168,28 @@ export function GeneralSettings({
   /** 更新编辑器字号 */
   const handleEditorFontSizeCommit = (value: number) => {
     onSettingsChange({ ...settings, editorFontSize: value });
+  };
+
+  const commitQuickStartPrompt = () => {
+    if (quickStartPromptDraft === settings.quickStartPrompt) return;
+    if (settings.quickStartEnabled && !quickStartPromptDraft.trim()) {
+      toast.error(t("settings.quickStartPromptRequired"));
+      setQuickStartPromptDraft(settings.quickStartPrompt);
+      return;
+    }
+    onSettingsChange({ ...settings, quickStartPrompt: quickStartPromptDraft });
+  };
+
+  const handleQuickStartEnabledChange = (enabled: boolean) => {
+    if (enabled && !quickStartPromptDraft.trim()) {
+      toast.error(t("settings.quickStartPromptRequired"));
+      return;
+    }
+    onSettingsChange({
+      ...settings,
+      quickStartEnabled: enabled,
+      quickStartPrompt: quickStartPromptDraft,
+    });
   };
 
   return (
@@ -244,6 +272,69 @@ export function GeneralSettings({
           onCommit={handleEditorFontSizeCommit}
           disabled={isSaving}
         />
+
+        <Flex
+          direction="column"
+          gap="3"
+          mt="4"
+        >
+          <Text
+            size="3"
+            weight="medium"
+          >
+            {t("settings.quickStartTitle")}
+          </Text>
+          <Flex
+            align="center"
+            justify="between"
+            gap="4"
+          >
+            <Box>
+              <Text
+                size="2"
+                weight="medium"
+                as="div"
+              >
+                {t("settings.quickStartEnabled")}
+              </Text>
+              <Text
+                size="1"
+                color="gray"
+                as="div"
+                mt="1"
+              >
+                {t("settings.quickStartDescription")}
+              </Text>
+            </Box>
+            <Switch
+              checked={settings.quickStartEnabled}
+              onCheckedChange={handleQuickStartEnabledChange}
+              disabled={isSaving}
+              aria-label={t("settings.quickStartEnabled")}
+            />
+          </Flex>
+          <Box>
+            <Text
+              as="label"
+              htmlFor="quick-start-prompt"
+              size="2"
+              weight="medium"
+              color="gray"
+            >
+              {t("settings.quickStartPrompt")}
+            </Text>
+            <TextArea
+              id="quick-start-prompt"
+              mt="2"
+              value={quickStartPromptDraft}
+              onChange={(event) => setQuickStartPromptDraft(event.target.value)}
+              onBlur={commitQuickStartPrompt}
+              placeholder={t("settings.quickStartPromptPlaceholder")}
+              disabled={isSaving}
+              rows={6}
+            />
+          </Box>
+        </Flex>
       </Flex>
     </Box>
   );

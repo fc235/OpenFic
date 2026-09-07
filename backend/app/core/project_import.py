@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Project import parsing for text files and ZIP archives."""
+"""Project import parsing for text files, ZIP archives, and EPUB files."""
 
 from collections.abc import Iterable
 import io
@@ -23,7 +23,7 @@ ImportSplitMode = Literal["auto", "manual"]
 DEFAULT_IMPORT_CHUNK_SIZE = 800
 MAX_IMPORT_CHUNK_SIZE = 100_000
 MAX_IMPORT_FILE_SIZE = 50 * 1024 * 1024
-SUPPORTED_IMPORT_SUFFIXES = frozenset({".txt", ".md", ".zip"})
+SUPPORTED_IMPORT_SUFFIXES = frozenset({".txt", ".md", ".zip", ".epub"})
 SUPPORTED_TEXT_SUFFIXES = frozenset({".txt", ".md"})
 
 
@@ -65,7 +65,11 @@ def parse_project_import(
         return parse_txt_content(content)
     if suffix == ".zip":
         return _parse_zip_archive(content)
-    raise ValueError("不支持的文件类型，仅支持 .txt、.md 或 .zip 文件")
+    if suffix == ".epub":
+        from app.core.epub_parser import parse_epub_content
+
+        return parse_epub_content(filename, content)
+    raise ValueError("不支持的文件类型，仅支持 .txt、.md、.zip 或 .epub 文件")
 
 
 def _parse_manual_text(content: bytes, chunk_size: int) -> ParseResult:

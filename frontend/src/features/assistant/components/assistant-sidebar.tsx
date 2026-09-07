@@ -337,6 +337,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
     const [isLoadingTask, setIsLoadingTask] = useState(false);
     const [currentTaskTitle, setCurrentTaskTitle] = useState<string>("");
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+    const [navigateToMessageId, setNavigateToMessageId] = useState<string | null>(null);
     const [summaryWarningOpen, setSummaryWarningOpen] = useState(false);
     const [sessionTotalUsage, setSessionTotalUsage] = useState<SessionTotalUsageState>(() =>
       createSessionTotalUsageState(),
@@ -648,6 +649,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
     const agentSidebar = useAgentSidebar({
       projectId,
       scrollToBottomKey: currentTaskId,
+      navigateToMessageId,
       modelId: effectiveModelId,
       reasoningEffort,
       agentKey: effectiveAgentKey,
@@ -1054,6 +1056,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
 
     const loadTask = useCallback(
       async (task: TaskListItem) => {
+        setNavigateToMessageId(task.matchedMessageId ?? null);
         void loadTaskById(task.id, {
           initialTask: task,
         });
@@ -1092,6 +1095,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
       setView("tasks");
       setIsLoadingTask(false);
       setCurrentTaskId(null);
+      setNavigateToMessageId(null);
       setCurrentTaskTitle("");
       void refetchRecentTasks();
     }, [agentSidebar, refetchRecentTasks]);
@@ -1111,6 +1115,8 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
         ),
       [chaptersData?.volumes],
     );
+
+    const hasActiveTask = Boolean(parentConversationSessionId);
 
     const hasIncompleteContextSummaries = useMemo(() => {
       const maintenance = summaryPanelData?.maintenance;
@@ -1151,16 +1157,41 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
       agentSidebar.onSend();
     }, [inputValue, agentSidebar]);
 
+    const requestSendWithSummaryCheck = useCallback(
+      (action: () => void) => {
+        if (!hasIncompleteContextSummaries) {
+          action();
+          return;
+        }
+
+        pendingSendActionRef.current = action;
+        setSummaryWarningOpen(true);
+      },
+      [hasIncompleteContextSummaries],
+    );
+
     const handleSend = useCallback(() => {
       if (!inputValue.trim() && pendingAttachments.length === 0) return;
-      if (!hasIncompleteContextSummaries) {
-        performSend();
-        return;
-      }
+      requestSendWithSummaryCheck(performSend);
+    }, [inputValue, pendingAttachments.length, performSend, requestSendWithSummaryCheck]);
 
-      pendingSendActionRef.current = performSend;
-      setSummaryWarningOpen(true);
-    }, [hasIncompleteContextSummaries, inputValue, pendingAttachments.length, performSend]);
+    const quickStartPrompt = settings?.quickStartPrompt ?? "";
+    const canShowQuickStart =
+      !hasActiveTask &&
+      !isViewingSubagent &&
+      settings?.quickStartEnabled === true &&
+      Boolean(quickStartPrompt.trim());
+
+    const performQuickStart = useCallback(() => {
+      if (!quickStartPrompt.trim() || agentSidebar.sessionId || agentSidebar.isRunning) return;
+      const title = quickStartPrompt.trim();
+      setCurrentTaskTitle(title.length > 50 ? `${title.slice(0, 50)}...` : title);
+      void agentSidebar.startSession(quickStartPrompt);
+    }, [agentSidebar, quickStartPrompt]);
+
+    const handleQuickStart = useCallback(() => {
+      requestSendWithSummaryCheck(performQuickStart);
+    }, [performQuickStart, requestSendWithSummaryCheck]);
 
     const handleConfirmSummaryWarning = useCallback(() => {
       setSummaryWarningOpen(false);
@@ -1295,8 +1326,6 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
 
     const recentTasks = tasksData?.items ?? [];
     const hasRecentTasks = recentTasks.length > 0;
-
-    const hasActiveTask = Boolean(parentConversationSessionId);
 
     const shouldShowMobileToolbar = isMobileOverlay && view !== "allTasks" && !hasActiveTask;
 
@@ -1692,6 +1721,8 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
                   onToggleFavorite={handleToggleFavorite}
                   onRenameTask={handleRenameTask}
                   onViewAll={openAllTasks}
+                  onQuickStart={canShowQuickStart ? handleQuickStart : undefined}
+                  quickStartDisabled={agentSidebar.isRunning || isLoadingTask}
                 />
               ) : (
                 agentSidebar.MessagesComponent

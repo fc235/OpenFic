@@ -261,6 +261,21 @@ export function AllTasksPage({ projectId, onBack, onTaskClick }: AllTasksPagePro
                   />
                 )}
               </Flex>
+              {task.matchedMessageSnippet ? (
+                <Text
+                  size="1"
+                  color="gray"
+                  style={{
+                    display: "block",
+                    marginBottom: 8,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {task.matchedMessageSnippet}
+                </Text>
+              ) : null}
 
               {/* 底部栏 */}
               <Flex

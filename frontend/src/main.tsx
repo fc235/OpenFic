@@ -9,12 +9,8 @@ import { AppCrashFallback, GlobalLoading } from "./components";
 import { Toaster } from "./components/toaster";
 import { AppLayout } from "./features/app-shell";
 import { AuthPage } from "./features/auth";
-import { CharactersPage } from "./features/characters";
-import { PromptChainsPage } from "./features/prompt-chains";
 import { fetchSettings } from "./features/settings/lib/settings-api";
 import type { Settings } from "./features/settings/lib/settings.types";
-import { WorldInfoPage } from "./features/world-info";
-import { WritingPage } from "./features/writing";
 // 初始化 i18n
 import i18n, { type LanguageCode } from "./i18n";
 import { checkHealth, fetchAuthPreferences, fetchAuthStatus } from "./lib/api-client";
@@ -33,18 +29,6 @@ import { connectSocket } from "./lib/socket-client";
 import { preloadTiktokenEncoding } from "./lib/tiktoken-utils";
 
 import "streamdown/styles.css";
-import "@fontsource-variable/cascadia-code";
-import "@fontsource-variable/fira-code";
-import "@fontsource-variable/jetbrains-mono";
-import "@fontsource-variable/noto-sans-sc";
-import "@fontsource-variable/noto-serif-sc";
-import "@fontsource-variable/roboto-mono";
-import "@fontsource-variable/source-code-pro";
-import "@fontsource/ma-shan-zheng";
-import "@fontsource/wdxl-lubrifont-sc";
-import "@fontsource/zcool-kuaile";
-import "@fontsource/zcool-xiaowei";
-
 import "./styles/index.css";
 
 import { registerSW } from "./pwa/register-sw";
@@ -63,7 +47,7 @@ const queryClient = new QueryClient({
 const FRONTEND_VERSION = __OPENFIC_FRONTEND_VERSION__;
 const INITIALIZATION_TIMEOUT_MS = 30_000;
 
-type InitializationStage = "preferences" | "auth" | "health" | "settings" | "tiktoken" | "socket";
+type InitializationStage = "preferences" | "auth" | "health" | "settings" | "socket";
 
 class InitializationError extends Error {
   readonly stage: InitializationStage;
@@ -138,7 +122,6 @@ function getInitializationErrorMessage(error: unknown): string {
     auth: i18n.t("common.initializationAuth"),
     health: i18n.t("common.initializationHealth"),
     settings: i18n.t("common.initializationSettings"),
-    tiktoken: i18n.t("common.initializationTiktoken"),
     socket: i18n.t("common.initializationSocket"),
   };
 
@@ -152,6 +135,18 @@ const DashboardPage = lazy(() =>
   import("./features/dashboard/pages/dashboard-page").then((module) => ({
     default: module.DashboardPage,
   })),
+);
+const WritingPage = lazy(() =>
+  import("./features/writing").then((module) => ({ default: module.WritingPage })),
+);
+const WorldInfoPage = lazy(() =>
+  import("./features/world-info").then((module) => ({ default: module.WorldInfoPage })),
+);
+const CharactersPage = lazy(() =>
+  import("./features/characters").then((module) => ({ default: module.CharactersPage })),
+);
+const PromptChainsPage = lazy(() =>
+  import("./features/prompt-chains").then((module) => ({ default: module.PromptChainsPage })),
 );
 
 function AppContent({
@@ -167,47 +162,45 @@ function AppContent({
 }) {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route
-          element={
-            <AppLayout
-              appearance={appearance}
-              version={version}
-              onAppearanceChange={setAppearance}
-              onToggleTheme={toggleTheme}
-            />
-          }
-        >
+      <Suspense fallback={null}>
+        <Routes>
           <Route
-            path="/"
-            element={<App />}
-          />
-          <Route
-            path="/projects/:projectId"
-            element={<WritingPage />}
-          />
-          <Route
-            path="/world-info"
-            element={<WorldInfoPage />}
-          />
-          <Route
-            path="/characters"
-            element={<CharactersPage />}
-          />
-          <Route
-            path="/prompt-chains"
-            element={<PromptChainsPage />}
-          />
-          <Route
-            path="/dashboard"
             element={
-              <Suspense fallback={null}>
-                <DashboardPage />
-              </Suspense>
+              <AppLayout
+                appearance={appearance}
+                version={version}
+                onAppearanceChange={setAppearance}
+                onToggleTheme={toggleTheme}
+              />
             }
-          />
-        </Route>
-      </Routes>
+          >
+            <Route
+              path="/"
+              element={<App />}
+            />
+            <Route
+              path="/projects/:projectId"
+              element={<WritingPage />}
+            />
+            <Route
+              path="/world-info"
+              element={<WorldInfoPage />}
+            />
+            <Route
+              path="/characters"
+              element={<CharactersPage />}
+            />
+            <Route
+              path="/prompt-chains"
+              element={<PromptChainsPage />}
+            />
+            <Route
+              path="/dashboard"
+              element={<DashboardPage />}
+            />
+          </Route>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }
@@ -257,6 +250,9 @@ function Root() {
         }
 
         void initErrorTelemetry();
+        void preloadTiktokenEncoding().catch((tokenError) => {
+          console.warn("Token encoding initialization failed; using estimation:", tokenError);
+        });
 
         const [, settings] = await Promise.all([
           withInitializationStage("health", checkHealth()),
@@ -267,7 +263,6 @@ function Root() {
               queryFn: fetchSettings,
             }),
           ),
-          withInitializationStage("tiktoken", preloadTiktokenEncoding()),
           withInitializationStage(
             "socket",
             connectSocket({ timeoutMs: INITIALIZATION_TIMEOUT_MS }),

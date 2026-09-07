@@ -91,6 +91,8 @@ SETTING_KEY_EDITOR_AUTO_INDENT = "editor_auto_indent"
 SETTING_KEY_EDITOR_AUTO_CONVERT_PUNCTUATION = "editor_auto_convert_punctuation"
 SETTING_KEY_EDITOR_AUTO_PAIR_SYMBOLS = "editor_auto_pair_symbols"
 SETTING_KEY_EDITOR_SHOW_LINE_NUMBERS = "editor_show_line_numbers"
+SETTING_KEY_QUICK_START_ENABLED = "quick_start_enabled"
+SETTING_KEY_QUICK_START_PROMPT = "quick_start_prompt"
 # 默认值
 DEFAULT_SETTINGS = {
     SETTING_KEY_LANGUAGE: "zh-CN",
@@ -120,6 +122,8 @@ DEFAULT_SETTINGS = {
     SETTING_KEY_EDITOR_AUTO_CONVERT_PUNCTUATION: "false",
     SETTING_KEY_EDITOR_AUTO_PAIR_SYMBOLS: "false",
     SETTING_KEY_EDITOR_SHOW_LINE_NUMBERS: "false",
+    SETTING_KEY_QUICK_START_ENABLED: "false",
+    SETTING_KEY_QUICK_START_PROMPT: "",
 }
 
 
@@ -393,6 +397,17 @@ code_font_family=settings_dict.get(
             ),
             default=False,
         ),
+        quick_start_enabled=_parse_bool_setting(
+            settings_dict.get(
+                SETTING_KEY_QUICK_START_ENABLED,
+                DEFAULT_SETTINGS[SETTING_KEY_QUICK_START_ENABLED],
+            ),
+            default=False,
+        ),
+        quick_start_prompt=settings_dict.get(
+            SETTING_KEY_QUICK_START_PROMPT,
+            DEFAULT_SETTINGS[SETTING_KEY_QUICK_START_PROMPT],
+        ),
     )
 
 
@@ -442,6 +457,38 @@ async def update_settings(
 
     settings_list = await setting_repo.get_all(session)
     current_settings = {setting.key: setting.value for setting in settings_list}
+
+    quick_start_changed = (
+        request.quick_start_enabled is not None
+        or request.quick_start_prompt is not None
+    )
+    if quick_start_changed:
+        current_enabled = _parse_bool_setting(
+            current_settings.get(
+                SETTING_KEY_QUICK_START_ENABLED,
+                DEFAULT_SETTINGS[SETTING_KEY_QUICK_START_ENABLED],
+            ),
+            default=False,
+        )
+        current_prompt = current_settings.get(
+            SETTING_KEY_QUICK_START_PROMPT,
+            DEFAULT_SETTINGS[SETTING_KEY_QUICK_START_PROMPT],
+        )
+        next_enabled = (
+            request.quick_start_enabled
+            if request.quick_start_enabled is not None
+            else current_enabled
+        )
+        next_prompt = (
+            request.quick_start_prompt
+            if request.quick_start_prompt is not None
+            else current_prompt
+        )
+        if next_enabled and not next_prompt.strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="启用快捷新会话前必须填写启动提示词",
+            )
 
     # 构建要更新的设置字典
     settings_to_update: dict[str, str] = {}
@@ -580,6 +627,13 @@ async def update_settings(
             request.editor_show_line_numbers,
             ensure_ascii=False,
         )
+    if request.quick_start_enabled is not None:
+        settings_to_update[SETTING_KEY_QUICK_START_ENABLED] = json.dumps(
+            request.quick_start_enabled,
+            ensure_ascii=False,
+        )
+    if request.quick_start_prompt is not None:
+        settings_to_update[SETTING_KEY_QUICK_START_PROMPT] = request.quick_start_prompt
 
     # 分块参数或嵌入模型变更会使现有索引失效，需要标记重建。
     if index_contract_changed:

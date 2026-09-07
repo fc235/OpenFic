@@ -9,12 +9,29 @@ import {
   FileText,
   Upload,
 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Spinner } from "@/components";
-import { importNotes, previewNoteImport } from "@/lib/api-client";
-import type { NoteImportPreview, NoteImportResult } from "@/lib/note.types";
+import {
+  fetchNoteTree,
+  fetchProjects,
+  importNotes,
+  importNotesFromProject,
+  previewNoteImport,
+  previewProjectNoteImport,
+} from "@/lib/api-client";
+import type {
+  NoteCategoryItem,
+  NoteConflictStrategy,
+  NoteImportPreview,
+  NoteImportResult,
+  NoteTreeResponse,
+  ProjectNoteImportPreview,
+  ProjectNoteImportRequest,
+  ProjectNoteImportResult,
+} from "@/lib/note.types";
+import type { Project } from "@/lib/project.types";
 
 import "./note-import-dialog.css";
 
@@ -22,7 +39,7 @@ interface NoteImportDialogProps {
   open: boolean;
   projectId: string;
   onOpenChange: (open: boolean) => void;
-  onSuccess?: (result: NoteImportResult) => void;
+  onSuccess?: (result: NoteImportResult | ProjectNoteImportResult) => void;
 }
 
 type NoteImportStep = "select" | "preview" | "importing" | "complete";
@@ -54,9 +71,37 @@ export function NoteImportDialog({
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<NoteImportPreview | null>(null);
   const [result, setResult] = useState<NoteImportResult | null>(null);
+  const [sourceMode, setSourceMode] = useState<"file" | "project">("file");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [sourceProjectId, setSourceProjectId] = useState("");
+  const [sourceTree, setSourceTree] = useState<NoteTreeResponse | null>(null);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
+  const [conflictStrategy, setConflictStrategy] = useState<NoteConflictStrategy>("rename");
+  const [conflictOverrides, setConflictOverrides] = useState<Record<string, NoteConflictStrategy>>(
+    {},
+  );
+  const [projectPreview, setProjectPreview] = useState<ProjectNoteImportPreview | null>(null);
+  const [projectResult, setProjectResult] = useState<ProjectNoteImportResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewRequestRef = useRef(0);
+
+  useEffect(() => {
+    if (!open) return;
+    void fetchProjects({ page: 1, pageSize: 100 }).then((value) =>
+      setProjects(value.items.filter((item) => item.id !== projectId)),
+    );
+  }, [open, projectId]);
+
+  useEffect(() => {
+    if (!sourceProjectId) {
+      setSourceTree(null);
+      return;
+    }
+    void fetchNoteTree(sourceProjectId).then(setSourceTree);
+  }, [sourceProjectId]);
 
   const resetState = useCallback(() => {
     setStep("select");
@@ -65,6 +110,15 @@ export function NoteImportDialog({
     setResult(null);
     setIsLoading(false);
     setError(null);
+    setSourceMode("file");
+    setSourceProjectId("");
+    setSourceTree(null);
+    setSelectedCategoryIds([]);
+    setSelectedNoteIds([]);
+    setProjectPreview(null);
+    setProjectResult(null);
+    setConflictOverrides({});
+    previewRequestRef.current += 1;
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
 
@@ -78,6 +132,7 @@ export function NoteImportDialog({
 
   const handleFileSelect = useCallback(
     async (selectedFile: File) => {
+      const requestId = ++previewRequestRef.current;
       if (!isSupportedNoteImportFile(selectedFile)) {
         setError(t("writing.noteImport.invalidFileType"));
         return;
@@ -90,12 +145,15 @@ export function NoteImportDialog({
 
       try {
         const nextPreview = await previewNoteImport(projectId, selectedFile);
+        if (requestId !== previewRequestRef.current) return;
         setPreview(nextPreview);
         setStep("preview");
       } catch (importError) {
-        setError(getImportErrorMessage(importError, t("writing.noteImport.parseFailed")));
+        if (requestId === previewRequestRef.current) {
+          setError(getImportErrorMessage(importError, t("writing.noteImport.parseFailed")));
+        }
       } finally {
-        setIsLoading(false);
+        if (requestId === previewRequestRef.current) setIsLoading(false);
       }
     },
     [projectId, t],
@@ -110,7 +168,36 @@ export function NoteImportDialog({
     [handleFileSelect],
   );
 
+  const buildProjectRequest = useCallback(
+    (): ProjectNoteImportRequest => ({
+      sourceProjectId,
+      selectedCategoryIds,
+      selectedNoteIds,
+      defaultConflictStrategy: conflictStrategy,
+      conflictOverrides,
+    }),
+    [sourceProjectId, selectedCategoryIds, selectedNoteIds, conflictStrategy, conflictOverrides],
+  );
+
   const handleImport = useCallback(async () => {
+    if (sourceMode === "project") {
+      const request = buildProjectRequest();
+      setStep("importing");
+      setIsLoading(true);
+      setError(null);
+      try {
+        const nextResult = await importNotesFromProject(projectId, request);
+        setProjectResult(nextResult);
+        setStep("complete");
+        onSuccess?.(nextResult);
+      } catch (importError) {
+        setError(getImportErrorMessage(importError, t("writing.noteImport.importFailed")));
+        setStep("preview");
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
     if (!file) return;
     setStep("importing");
     setIsLoading(true);
@@ -127,7 +214,104 @@ export function NoteImportDialog({
     } finally {
       setIsLoading(false);
     }
-  }, [file, onSuccess, projectId, t]);
+  }, [buildProjectRequest, file, onSuccess, projectId, sourceMode, t]);
+
+  const handleProjectPreview = useCallback(async () => {
+    const requestId = ++previewRequestRef.current;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const nextPreview = await previewProjectNoteImport(projectId, buildProjectRequest());
+      if (requestId !== previewRequestRef.current) return;
+      setProjectPreview(nextPreview);
+      setStep("preview");
+    } catch (importError) {
+      if (requestId === previewRequestRef.current)
+        setError(getImportErrorMessage(importError, t("writing.noteImport.parseFailed")));
+    } finally {
+      if (requestId === previewRequestRef.current) setIsLoading(false);
+    }
+  }, [buildProjectRequest, projectId, t]);
+
+  const handleOverrideChange = useCallback(
+    async (noteId: string, strategy: NoteConflictStrategy) => {
+      const nextOverrides = { ...conflictOverrides, [noteId]: strategy };
+      setConflictOverrides(nextOverrides);
+      const requestId = ++previewRequestRef.current;
+      setIsLoading(true);
+      try {
+        const nextPreview = await previewProjectNoteImport(projectId, {
+          ...buildProjectRequest(),
+          conflictOverrides: nextOverrides,
+        });
+        if (requestId === previewRequestRef.current) setProjectPreview(nextPreview);
+      } catch (importError) {
+        if (requestId === previewRequestRef.current) {
+          setError(getImportErrorMessage(importError, t("writing.noteImport.parseFailed")));
+        }
+      } finally {
+        if (requestId === previewRequestRef.current) setIsLoading(false);
+      }
+    },
+    [buildProjectRequest, conflictOverrides, projectId, t],
+  );
+
+  const toggleNote = useCallback((id: string, checked: boolean) => {
+    setSelectedNoteIds((items) =>
+      checked ? [...new Set([...items, id])] : items.filter((item) => item !== id),
+    );
+  }, []);
+
+  const toggleCategory = useCallback((category: NoteCategoryItem, checked: boolean) => {
+    const categoryIds: string[] = [];
+    const noteIds: string[] = [];
+    const collect = (item: NoteCategoryItem) => {
+      categoryIds.push(item.id);
+      noteIds.push(...item.notes.map((note) => note.id));
+      item.categories.forEach(collect);
+    };
+    collect(category);
+    setSelectedCategoryIds((items) =>
+      checked
+        ? [...new Set([...items, ...categoryIds])]
+        : items.filter((id) => !categoryIds.includes(id)),
+    );
+    setSelectedNoteIds((items) =>
+      checked ? [...new Set([...items, ...noteIds])] : items.filter((id) => !noteIds.includes(id)),
+    );
+  }, []);
+
+  const renderProjectTree = (categories: NoteCategoryItem[], depth = 0): React.ReactNode =>
+    categories.map((category) => (
+      <Box
+        key={category.id}
+        style={{ paddingLeft: depth * 16 }}
+      >
+        <label className="note-import-check-row">
+          <input
+            type="checkbox"
+            checked={selectedCategoryIds.includes(category.id)}
+            onChange={(event) => toggleCategory(category, event.target.checked)}
+          />
+          <span>📁 {category.title}</span>
+        </label>
+        {category.notes.map((note) => (
+          <label
+            key={note.id}
+            className="note-import-check-row"
+            style={{ marginLeft: 16 }}
+          >
+            <input
+              type="checkbox"
+              checked={selectedNoteIds.includes(note.id)}
+              onChange={(event) => toggleNote(note.id, event.target.checked)}
+            />
+            <span>{note.title}</span>
+          </label>
+        ))}
+        {renderProjectTree(category.categories, depth + 1)}
+      </Box>
+    ));
 
   const handleBackToSelect = useCallback(() => {
     setStep("select");
@@ -155,64 +339,206 @@ export function NoteImportDialog({
       case "select":
         return (
           <Box>
-            <input
-              ref={fileInputRef}
-              className="note-import-file-input"
-              type="file"
-              accept=".md,.zip"
-              onChange={(event) => {
-                const selectedFile = event.target.files?.[0];
-                if (selectedFile) void handleFileSelect(selectedFile);
-              }}
-            />
-            <Box
-              className="note-import-dropzone"
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
+            <Flex
+              gap="2"
+              mb="4"
             >
-              <Upload
-                size={48}
-                className="note-import-upload-icon"
-              />
-              <Text
-                as="p"
-                size="3"
-                weight="medium"
-                mb="2"
+              <Button
+                variant={sourceMode === "file" ? "solid" : "soft"}
+                onClick={() => setSourceMode("file")}
               >
-                {t("writing.noteImport.dragDropHint")}
-              </Text>
-              <Text
-                as="p"
-                size="2"
-                color="gray"
+                {t("writing.noteImport.fileSource")}
+              </Button>
+              <Button
+                variant={sourceMode === "project" ? "solid" : "soft"}
+                onClick={() => setSourceMode("project")}
               >
-                {t("writing.noteImport.supportedFormats")}
-              </Text>
-            </Box>
-            {isLoading && (
-              <Flex
-                align="center"
-                justify="center"
-                gap="2"
-                mt="4"
-              >
-                <Spinner size={18} />
+                {t("writing.noteImport.projectSource")}
+              </Button>
+            </Flex>
+            {sourceMode === "project" ? (
+              <Box>
                 <Text
+                  as="label"
                   size="2"
-                  color="gray"
                 >
-                  {t("writing.noteImport.parsing")}
+                  {t("writing.noteImport.sourceProject")}
                 </Text>
-              </Flex>
+                <select
+                  className="note-import-select"
+                  value={sourceProjectId}
+                  onChange={(event) => {
+                    setSourceProjectId(event.target.value);
+                    setSelectedCategoryIds([]);
+                    setSelectedNoteIds([]);
+                  }}
+                >
+                  <option value="">{t("writing.noteImport.selectProject")}</option>
+                  {projects.map((project) => (
+                    <option
+                      key={project.id}
+                      value={project.id}
+                    >
+                      {project.title}
+                    </option>
+                  ))}
+                </select>
+                {sourceTree && (
+                  <Box className="note-import-project-tree">
+                    {sourceTree.rootNotes.map((note) => (
+                      <label
+                        key={note.id}
+                        className="note-import-check-row"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedNoteIds.includes(note.id)}
+                          onChange={(event) => toggleNote(note.id, event.target.checked)}
+                        />
+                        <span>{note.title}</span>
+                      </label>
+                    ))}
+                    {renderProjectTree(sourceTree.categories)}
+                  </Box>
+                )}
+                <Text
+                  as="label"
+                  size="2"
+                >
+                  {t("writing.noteImport.defaultConflict")}
+                </Text>
+                <select
+                  className="note-import-select"
+                  value={conflictStrategy}
+                  onChange={(event) =>
+                    setConflictStrategy(event.target.value as NoteConflictStrategy)
+                  }
+                >
+                  <option value="rename">{t("writing.noteImport.rename")}</option>
+                  <option value="overwrite">{t("writing.noteImport.overwrite")}</option>
+                  <option value="skip">{t("writing.noteImport.skip")}</option>
+                </select>
+              </Box>
+            ) : (
+              <>
+                <input
+                  ref={fileInputRef}
+                  className="note-import-file-input"
+                  type="file"
+                  accept=".md,.zip"
+                  onChange={(event) => {
+                    const selectedFile = event.target.files?.[0];
+                    if (selectedFile) void handleFileSelect(selectedFile);
+                  }}
+                />
+                <Box
+                  className="note-import-dropzone"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload
+                    size={48}
+                    className="note-import-upload-icon"
+                  />
+                  <Text
+                    as="p"
+                    size="3"
+                    weight="medium"
+                    mb="2"
+                  >
+                    {t("writing.noteImport.dragDropHint")}
+                  </Text>
+                  <Text
+                    as="p"
+                    size="2"
+                    color="gray"
+                  >
+                    {t("writing.noteImport.supportedFormats")}
+                  </Text>
+                </Box>
+                {isLoading && (
+                  <Flex
+                    align="center"
+                    justify="center"
+                    gap="2"
+                    mt="4"
+                  >
+                    <Spinner size={18} />
+                    <Text
+                      size="2"
+                      color="gray"
+                    >
+                      {t("writing.noteImport.parsing")}
+                    </Text>
+                  </Flex>
+                )}
+              </>
             )}
           </Box>
         );
       case "preview":
         return (
           <Box>
-            {preview && file && (
+            {sourceMode === "project" && projectPreview ? (
+              <>
+                <Flex
+                  gap="3"
+                  mb="4"
+                  wrap="wrap"
+                >
+                  <Badge>
+                    {t("writing.noteImport.createdNotes", {
+                      count: projectPreview.createNoteCount,
+                    })}
+                  </Badge>
+                  <Badge color="orange">
+                    {t("writing.noteImport.overwrittenNotes", {
+                      count: projectPreview.overwriteNoteCount,
+                    })}
+                  </Badge>
+                  <Badge color="gray">
+                    {t("writing.noteImport.skippedNotes", { count: projectPreview.skipNoteCount })}
+                  </Badge>
+                  <Badge color="blue">
+                    {t("writing.noteImport.createdCategories", {
+                      count: projectPreview.createCategoryCount,
+                    })}
+                  </Badge>
+                </Flex>
+                <Box className="note-import-conflicts">
+                  {projectPreview.actions.map((action) => (
+                    <Flex
+                      key={action.sourceNoteId}
+                      justify="between"
+                      align="center"
+                      gap="3"
+                      className="note-import-action-row"
+                    >
+                      <Text size="2">
+                        {action.sourcePath ? `${action.sourcePath} / ` : ""}
+                        {action.targetTitle}
+                      </Text>
+                      <select
+                        value={conflictOverrides[action.sourceNoteId] ?? conflictStrategy}
+                        disabled={isLoading}
+                        onChange={(event) =>
+                          void handleOverrideChange(
+                            action.sourceNoteId,
+                            event.target.value as NoteConflictStrategy,
+                          )
+                        }
+                      >
+                        <option value="rename">{t("writing.noteImport.rename")}</option>
+                        <option value="overwrite">{t("writing.noteImport.overwrite")}</option>
+                        <option value="skip">{t("writing.noteImport.skip")}</option>
+                      </select>
+                    </Flex>
+                  ))}
+                </Box>
+              </>
+            ) : null}
+            {sourceMode === "file" && preview && file && (
               <>
                 <Flex
                   className="note-import-preview-stats"
@@ -306,7 +632,7 @@ export function NoteImportDialog({
               {t("writing.noteImport.importing")}
             </Text>
             <Progress
-              value={100}
+              value={null}
               max={100}
               size="2"
               mt="4"
@@ -339,17 +665,31 @@ export function NoteImportDialog({
             >
               {t("writing.noteImport.success")}
             </Text>
-            {result && (
+            {sourceMode === "project" && projectResult ? (
               <Text
                 as="p"
                 size="2"
                 color="gray"
               >
-                {t("writing.noteImport.successInfo", {
-                  notes: result.importedNoteCount,
-                  categories: result.importedCategoryCount,
+                {t("writing.noteImport.projectSuccessInfo", {
+                  created: projectResult.createdNoteCount,
+                  overwritten: projectResult.overwrittenNoteCount,
+                  skipped: projectResult.skippedNoteCount,
                 })}
               </Text>
+            ) : (
+              result && (
+                <Text
+                  as="p"
+                  size="2"
+                  color="gray"
+                >
+                  {t("writing.noteImport.successInfo", {
+                    notes: result.importedNoteCount,
+                    categories: result.importedCategoryCount,
+                  })}
+                </Text>
+              )
             )}
           </Flex>
         );
@@ -359,7 +699,30 @@ export function NoteImportDialog({
   const renderFooter = () => {
     switch (step) {
       case "select":
-        return (
+        return sourceMode === "project" ? (
+          <Flex
+            className="note-import-footer"
+            justify="between"
+          >
+            <Button
+              variant="soft"
+              color="gray"
+              onClick={() => handleOpenChange(false)}
+            >
+              {t("common.close")}
+            </Button>
+            <Button
+              loading={isLoading}
+              disabled={
+                !sourceProjectId || selectedCategoryIds.length + selectedNoteIds.length === 0
+              }
+              onClick={() => void handleProjectPreview()}
+            >
+              {t("writing.noteImport.previewProject")}
+              <ChevronRight size={16} />
+            </Button>
+          </Flex>
+        ) : (
           <Button
             variant="soft"
             color="gray"

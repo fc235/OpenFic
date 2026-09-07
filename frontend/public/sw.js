@@ -1,8 +1,18 @@
 importScripts("/sw-precache.js");
 
-const CACHE_NAME = "openfic-shell-v1";
+const CACHE_PREFIX = "openfic-shell-";
+const CACHE_NAME = `${CACHE_PREFIX}${self.__OPENFIC_BUILD_ID || "legacy"}`;
+const PRECACHE_PATHS = new Set(self.__PRECACHE_LIST || []);
 
-const BACKEND_PATHS = ["/api/", "/socket.io/", "/covers/", "/icons/"];
+const BACKEND_PATHS = [
+  "/api/",
+  "/socket.io/",
+  "/covers/",
+  "/icons/",
+  "/character-images/",
+  "/agent-attachments/",
+];
+const CACHEABLE_STATIC_PATHS = ["/assets/", "/fonts/", "/frontend-fonts/"];
 
 self.addEventListener("install", (event) => {
   const precacheList = self.__PRECACHE_LIST || [];
@@ -21,7 +31,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith("openfic-shell-") && key !== CACHE_NAME)
+            .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
             .map((key) => caches.delete(key)),
         ),
       )
@@ -31,6 +41,11 @@ self.addEventListener("activate", (event) => {
 
 function isBackendRequest(url) {
   return BACKEND_PATHS.some((p) => url.pathname.startsWith(p));
+}
+
+function isCacheableStaticRequest(url) {
+  return PRECACHE_PATHS.has(url.pathname) ||
+    CACHEABLE_STATIC_PATHS.some((path) => url.pathname.startsWith(path));
 }
 
 self.addEventListener("fetch", (event) => {
@@ -59,6 +74,10 @@ self.addEventListener("fetch", (event) => {
         })
         .catch(() => caches.match("/index.html")),
     );
+    return;
+  }
+
+  if (!isCacheableStaticRequest(url)) {
     return;
   }
 

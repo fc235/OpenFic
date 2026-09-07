@@ -120,7 +120,7 @@ function NoteEditorContent({
   const handleSave = useCallback(async () => {
     if (isAgentLocked) {
       showLockedToast();
-      return;
+      return "skipped" as const;
     }
 
     const draftToSave = latestDraftRef.current;
@@ -131,7 +131,7 @@ function NoteEditorContent({
       hasChangesRef.current = true;
       setHasChanges(true);
       showContentLimitToast(draftToSave.content);
-      return;
+      return "skipped" as const;
     }
     rejectedContentRef.current = null;
 
@@ -158,9 +158,11 @@ function NoteEditorContent({
       );
       hasChangesRef.current = isDirty;
       setHasChanges(isDirty);
+      return "saved" as const;
     } catch {
       hasChangesRef.current = true;
       setHasChanges(true);
+      return "failed" as const;
     } finally {
       setIsSaving(false);
     }

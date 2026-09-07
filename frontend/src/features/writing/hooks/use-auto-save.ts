@@ -6,13 +6,15 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 
+export type AutoSaveResult = "saved" | "skipped" | "failed";
+
 interface UseAutoSaveOptions {
   /** 保存间隔（毫秒），默认 3 分钟 */
   interval?: number;
   /** 是否启用自动保存 */
   enabled?: boolean;
   /** 保存函数 */
-  onSave: () => Promise<void>;
+  onSave: () => Promise<AutoSaveResult>;
   /** 是否有未保存的更改 */
   hasChanges: boolean;
 }
@@ -43,12 +45,13 @@ export function useAutoSave({
 
   // 执行保存
   const save = useCallback(async () => {
-    if (isSavingRef.current || !hasChanges) return;
+    if (isSavingRef.current || !hasChanges) return "skipped" as const;
 
     isSavingRef.current = true;
     try {
-      await onSave();
-      setLastSaveTime(Date.now());
+      const result = await onSave();
+      if (result === "saved") setLastSaveTime(Date.now());
+      return result;
     } finally {
       isSavingRef.current = false;
     }

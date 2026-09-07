@@ -37,6 +37,12 @@ class TaskListResult:
     total: int
 
 
+async def find_task_message_matches(
+    session: AsyncSession, task_ids: list[str], search_query: str
+) -> dict[str, tuple[str, str]]:
+    return await task_repo.find_message_matches(session, task_ids, search_query)
+
+
 async def create_task(
     session: AsyncSession,
     project_id: str,
@@ -236,11 +242,7 @@ async def _delete_runtime_data_for_tasks(
     task_ids = [task.id for task in tasks]
     if not task_ids:
         return
-    session_ids = [
-        task.agent_session_id
-        for task in tasks
-        if task.agent_session_id
-    ]
+    session_ids = [task.agent_session_id for task in tasks if task.agent_session_id]
     child_session_result = await session.execute(
         select(col(AgentChildRun.child_thread_id)).where(
             col(AgentChildRun.parent_task_id).in_(task_ids)
@@ -303,9 +305,7 @@ async def _list_orphan_plan_session_ids(
         )
     )
     reachable_session_ids = {
-        session_id
-        for session_id in root_session_result.scalars().all()
-        if session_id
+        session_id for session_id in root_session_result.scalars().all() if session_id
     }
     child_session_result = await session.execute(
         select(col(AgentChildRun.child_thread_id)).where(

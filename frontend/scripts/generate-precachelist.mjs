@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -74,6 +75,7 @@ function prepareFontAssets() {
   const files = walk(distDir, []);
 
   for (const file of files) {
+    if (file.endsWith(`${sep}font-faces.css`)) continue;
     const dot = file.lastIndexOf(".");
     const ext = dot >= 0 ? file.slice(dot).toLowerCase() : "";
 
@@ -94,23 +96,40 @@ function prepareFontAssets() {
 
 prepareFontAssets();
 const files = walk(distDir, []);
-const precacheList = files
-  .filter((f) => {
-    const name = f.split(sep).pop();
-    if (EXCLUDE_FILES.has(name)) {
-      return false;
-    }
+const indexHtml = readFileSync(join(distDir, "index.html"), "utf8");
+const shellPaths = new Set(
+  [...indexHtml.matchAll(/(?:src|href)=["'](\/[^"']+)["']/g)].map((match) => match[1]),
+);
+shellPaths.add("/index.html");
+
+const manifestPath = join(distDir, "manifest.webmanifest");
+try {
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  for (const icon of manifest.icons ?? []) {
+    if (typeof icon.src === "string" && icon.src.startsWith("/")) shellPaths.add(icon.src);
+  }
+} catch {
+  // The manifest is optional; index.html and its static dependency closure are sufficient.
+}
+
+const precacheList = [...shellPaths]
+  .filter((path) => {
+    const name = path.split("/").pop();
+    if (EXCLUDE_FILES.has(name)) return false;
     const dot = name.lastIndexOf(".");
     const ext = dot >= 0 ? name.slice(dot).toLowerCase() : "";
     return !EXCLUDE_EXTS.has(ext);
   })
-  .map((f) => {
-    const rel = relative(distDir, f).split(sep).join("/");
-    return "/" + rel;
-  })
-  .sort();
+  .sort((left, right) => left.localeCompare(right));
 
-const output = `self.__PRECACHE_LIST = ${JSON.stringify(precacheList, null, 2)};\n`;
+const buildHash = createHash("sha256");
+for (const file of files) {
+  if (file.endsWith(`${sep}sw-precache.js`)) continue;
+  buildHash.update(relative(distDir, file).split(sep).join("/"));
+  buildHash.update(readFileSync(file));
+}
+const buildId = buildHash.digest("hex").slice(0, 16);
+const output = `self.__OPENFIC_BUILD_ID = ${JSON.stringify(buildId)};\nself.__PRECACHE_LIST = ${JSON.stringify(precacheList, null, 2)};\n`;
 
 writeFileSync(join(distDir, "sw-precache.js"), output);
 console.log(`precache list generated: ${precacheList.length} entries`);

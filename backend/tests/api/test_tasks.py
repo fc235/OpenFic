@@ -29,7 +29,9 @@ from app.storage.services import task_service
 @pytest.mark.asyncio
 class TestTaskAPI:
     async def create_project_and_chapter(self, client: AsyncClient) -> tuple[str, str]:
-        project_response = await client.post("/api/v1/projects", data={"title": "测试项目"})
+        project_response = await client.post(
+            "/api/v1/projects", data={"title": "测试项目"}
+        )
         assert project_response.status_code == status.HTTP_201_CREATED
         project_id = project_response.json()["id"]
         volumes_response = await client.get(f"/api/v1/projects/{project_id}/volumes")
@@ -80,7 +82,10 @@ class TestTaskAPI:
             },
         )
 
-        assert response.status_code in {status.HTTP_404_NOT_FOUND, status.HTTP_405_METHOD_NOT_ALLOWED}
+        assert response.status_code in {
+            status.HTTP_404_NOT_FOUND,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+        }
 
     async def test_get_task_uses_agent_runtime_projection_with_agent_mode(
         self,
@@ -183,7 +188,9 @@ class TestTaskAPI:
         client: AsyncClient,
         session: AsyncSession,
     ) -> None:
-        task, project_id, chapter_id = await self.create_agent_task(client, session, title="任务 1")
+        task, project_id, chapter_id = await self.create_agent_task(
+            client, session, title="任务 1"
+        )
         await task_service.create_task(
             session,
             project_id=project_id,
@@ -201,12 +208,43 @@ class TestTaskAPI:
         assert all(item["mode"] == "agent" for item in data["items"])
         assert {item["id"] for item in data["items"]} >= {task.id}
 
+    async def test_list_tasks_searches_message_content(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+    ) -> None:
+        task, project_id, _chapter_id = await self.create_agent_task(client, session)
+        message = await agent_run_repo.insert_message(
+            session,
+            session_id=task.agent_session_id or "",
+            task_id=task.id,
+            project_id=project_id,
+            role="user",
+            content="请检查月光港口的伏笔",
+            status="sent",
+            metadata={},
+        )
+        await session.commit()
+
+        response = await client.get(
+            f"/api/v1/projects/{project_id}/tasks",
+            params={"search": "月光港口"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        item = response.json()["items"][0]
+        assert item["id"] == task.id
+        assert item["matched_message_id"] == message.id
+        assert "月光港口" in item["matched_message_snippet"]
+
     async def test_list_tasks_returns_running_state(
         self,
         client: AsyncClient,
         session: AsyncSession,
     ) -> None:
-        task, project_id, _chapter_id = await self.create_agent_task(client, session, title="任务 1")
+        task, project_id, _chapter_id = await self.create_agent_task(
+            client, session, title="任务 1"
+        )
         task.is_running = True
         await session.commit()
 
@@ -303,7 +341,9 @@ class TestTaskAPI:
         client: AsyncClient,
         session: AsyncSession,
     ) -> None:
-        _task, project_id, chapter_id = await self.create_agent_task(client, session, title="任务 1")
+        _task, project_id, chapter_id = await self.create_agent_task(
+            client, session, title="任务 1"
+        )
         await task_service.create_task(
             session,
             project_id=project_id,
@@ -351,7 +391,9 @@ class TestTaskAPI:
         assert data["messages"] == []
         assert "context_anchor" not in data
 
-    async def test_delete_task(self, client: AsyncClient, session: AsyncSession) -> None:
+    async def test_delete_task(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
         task, _project_id, _chapter_id = await self.create_agent_task(client, session)
 
         with patch(

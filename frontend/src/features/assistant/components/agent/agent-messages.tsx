@@ -8,7 +8,7 @@ import { Box, Flex, IconButton, Text, Tooltip } from "@radix-ui/themes";
 import { Check, Copy, GitFork, RotateCcw } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Virtuoso } from "react-virtuoso";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
 import { ConfirmDialog, toast } from "@/components";
 import type {
@@ -18,6 +18,12 @@ import type {
 } from "@/lib/agent.types";
 
 import { AgentChangeSummaryCard } from "./agent-changes";
+import {
+  buildAgentMessageNavigationItems,
+  getActiveAgentMessageNavigationId,
+  type AgentMessageNavigationItem,
+} from "./agent-message-navigation";
+import { AgentMessageNavigator } from "./agent-message-navigator";
 import { AgentMessageRenderer } from "./agent-message-renderer";
 import {
   getStreamingFollowSignal,
@@ -111,6 +117,7 @@ interface AgentMessagesProps {
   onOpenChanges?: (summary: AgentChangeSummary) => void;
   onAtBottomChange?: (isAtBottom: boolean) => void;
   scrollToBottomFnRef?: React.MutableRefObject<(() => void) | null>;
+  navigateToMessageId?: string | null;
 }
 
 function isRollbackableUserMessage(message: AgentMessageType): boolean {
@@ -291,11 +298,14 @@ export function AgentMessages({
   onOpenChanges,
   onAtBottomChange,
   scrollToBottomFnRef,
+  navigateToMessageId,
 }: AgentMessagesProps) {
   const { t } = useTranslation();
   const contentRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLElement | null>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const navigationItemsRef = useRef<AgentMessageNavigationItem[]>([]);
   const shouldFollowBottomRef = useRef(true);
   const isRestoringLoadedSessionBottomRef = useRef(false);
   const pendingLoadedSessionRestoreKeyRef = useRef<string | null | undefined>(null);
@@ -315,6 +325,8 @@ export function AgentMessages({
   );
   const [pendingForkTarget, setPendingForkTarget] = useState<AgentRoundToolbarTarget | null>(null);
   const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(() => new Set());
+  const [visibleStartIndex, setVisibleStartIndex] = useState(Number.MAX_SAFE_INTEGER);
+  const [scrollViewportHeight, setScrollViewportHeight] = useState(0);
   const streamFollowSignal = getStreamingFollowSignal(messages);
   const runningStatus = useMemo(() => getAgentRunningStatus(messages), [messages]);
   const roundStartedAt = useMemo(() => getCurrentRoundStartedAt(messages), [messages]);
@@ -390,6 +402,35 @@ export function AgentMessages({
       scrollContainerRef.current ?? contentRef.current?.closest(".ai-sidebar-messages");
     if (!(container instanceof HTMLElement)) return;
 
+    const syncActiveNavigation = (atBottom: boolean) => {
+      const navigationItems = navigationItemsRef.current;
+      if (navigationItems.length === 0) return;
+
+      let activeBlockIndex = navigationItems[0].blockIndex;
+      if (atBottom) {
+        activeBlockIndex = navigationItems[navigationItems.length - 1].blockIndex;
+      } else {
+        const viewportTop = container.getBoundingClientRect().top + 16;
+        const firstRenderedElement = contentRef.current?.querySelector<HTMLElement>("[data-index]");
+        const firstRenderedIndex = Number(firstRenderedElement?.dataset.index ?? 0);
+        for (const item of navigationItems) {
+          const element = contentRef.current?.querySelector<HTMLElement>(
+            `[data-index="${item.blockIndex}"]`,
+          );
+          if (!element) {
+            if (item.blockIndex < firstRenderedIndex) activeBlockIndex = item.blockIndex;
+            else break;
+            continue;
+          }
+          if (element.getBoundingClientRect().top > viewportTop) break;
+          activeBlockIndex = item.blockIndex;
+        }
+      }
+      setVisibleStartIndex((current) =>
+        current === activeBlockIndex ? current : activeBlockIndex,
+      );
+    };
+
     const handleScroll = () => {
       const nextViewport = {
         scrollHeight: container.scrollHeight,
@@ -397,6 +438,7 @@ export function AgentMessages({
         clientHeight: container.clientHeight,
       };
       const atBottom = shouldFollowBottom(nextViewport);
+      syncActiveNavigation(atBottom);
       if (isAtBottomRef.current !== atBottom) {
         isAtBottomRef.current = atBottom;
         onAtBottomChange?.(atBottom);
@@ -418,17 +460,21 @@ export function AgentMessages({
         scrollHeight: container.scrollHeight,
         clientHeight: container.clientHeight,
       };
+      setScrollViewportHeight((current) =>
+        current === container.clientHeight ? current : container.clientHeight,
+      );
+      const atBottom = shouldFollowBottom({
+        scrollHeight: container.scrollHeight,
+        scrollTop: container.scrollTop,
+        clientHeight: container.clientHeight,
+      });
+      syncActiveNavigation(atBottom);
       const previousFrame = resizeFrameRef.current;
       resizeFrameRef.current = nextFrame;
       if (isRestoringLoadedSessionBottomRef.current) {
         scheduleLoadedSessionBottomRestore();
         return;
       }
-      const atBottom = shouldFollowBottom({
-        scrollHeight: container.scrollHeight,
-        scrollTop: container.scrollTop,
-        clientHeight: container.clientHeight,
-      });
       if (isAtBottomRef.current !== atBottom) {
         isAtBottomRef.current = atBottom;
         onAtBottomChange?.(atBottom);
@@ -487,6 +533,7 @@ export function AgentMessages({
     if (shouldRestore) {
       pendingLoadedSessionRestoreKeyRef.current = scrollToBottomKey;
       restoreAttemptRef.current = 0;
+      setVisibleStartIndex(Number.MAX_SAFE_INTEGER);
     } else if (!scrollToBottomKey) {
       pendingLoadedSessionRestoreKeyRef.current = null;
     }
@@ -560,6 +607,19 @@ export function AgentMessages({
     () => getVisibleAgentMessageBlocks(messageBlocks, collapsedNodeIds),
     [collapsedNodeIds, messageBlocks],
   );
+  const navigationItems = useMemo(
+    () =>
+      buildAgentMessageNavigationItems(
+        visibleMessageBlocks,
+        t("assistant.messageNavigatorEmptyPreview"),
+      ),
+    [t, visibleMessageBlocks],
+  );
+  navigationItemsRef.current = navigationItems;
+  const activeNavigationId = useMemo(
+    () => getActiveAgentMessageNavigationId(navigationItems, visibleStartIndex),
+    [navigationItems, visibleStartIndex],
+  );
   const changeSummaryByAnchorId = useMemo(
     () => buildAgentRoundChangeSummaries(messageBlocks, visibleMessageBlocks, changes),
     [changes, messageBlocks, visibleMessageBlocks],
@@ -581,6 +641,47 @@ export function AgentMessages({
       return next;
     });
   }, []);
+
+  const handleNavigateToUserMessage = useCallback(
+    (requested: AgentMessageNavigationItem) => {
+      const current = navigationItems.find((item) => item.id === requested.id);
+      if (!current || !virtuosoRef.current) return;
+
+      setVisibleStartIndex(current.blockIndex);
+      shouldFollowBottomRef.current = false;
+      isRestoringLoadedSessionBottomRef.current = false;
+      pendingLoadedSessionRestoreKeyRef.current = null;
+      restoreAttemptRef.current = 0;
+      if (restoreScrollRafRef.current !== null) {
+        window.cancelAnimationFrame(restoreScrollRafRef.current);
+        restoreScrollRafRef.current = null;
+      }
+      if (streamingScrollRafRef.current !== null) {
+        window.cancelAnimationFrame(streamingScrollRafRef.current);
+        streamingScrollRafRef.current = null;
+      }
+
+      virtuosoRef.current.scrollToIndex({
+        index: current.blockIndex,
+        align: "start",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      });
+    },
+    [navigationItems],
+  );
+
+  const lastExternalNavigationRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!navigateToMessageId || lastExternalNavigationRef.current === navigateToMessageId) return;
+    const blockIndex = visibleMessageBlocks.findIndex((block) =>
+      block.messages.some((message) => message.id === navigateToMessageId),
+    );
+    if (blockIndex < 0 || !virtuosoRef.current) return;
+    lastExternalNavigationRef.current = navigateToMessageId;
+    setVisibleStartIndex(blockIndex);
+    shouldFollowBottomRef.current = false;
+    virtuosoRef.current.scrollToIndex({ index: blockIndex, align: "start", behavior: "smooth" });
+  }, [navigateToMessageId, visibleMessageBlocks]);
 
   const copyText = useCallback(
     async (content: string, emptyMessage: string, actionId: string) => {
@@ -843,13 +944,23 @@ export function AgentMessages({
     <Box
       className="agent-messages-root"
       data-rollbacking={isRollbacking ? "true" : undefined}
+      data-has-navigator={
+        navigationItems.length >= 2 && scrollViewportHeight > 0 ? "true" : undefined
+      }
     >
+      <AgentMessageNavigator
+        items={navigationItems}
+        activeId={activeNavigationId}
+        viewportHeight={scrollViewportHeight}
+        onNavigate={handleNavigateToUserMessage}
+      />
       <Box
         ref={contentRef}
         className="agent-message-scroll-content"
       >
         {scrollParent ? (
           <Virtuoso
+            ref={virtuosoRef}
             customScrollParent={scrollParent}
             data={visibleMessageBlocks}
             computeItemKey={(_index, block) => block.id}

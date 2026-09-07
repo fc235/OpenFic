@@ -1,14 +1,11 @@
 import { cjk } from "@streamdown/cjk";
-import { math } from "@streamdown/math";
-import { mermaid } from "@streamdown/mermaid";
+import { useEffect, useState } from "react";
 import {
   Streamdown,
   type AnimateOptions,
   type LinkSafetyConfig,
   type PluginConfig,
 } from "streamdown";
-
-import "katex/dist/katex.min.css";
 
 import { createLimitedCodePlugin } from "@/lib/limited-code-highlighter";
 
@@ -30,12 +27,26 @@ const STREAMING_ANIMATION: AnimateOptions = {
   sep: "word",
 };
 
-const STREAMDOWN_PLUGINS: PluginConfig = {
+const BASE_STREAMDOWN_PLUGINS: PluginConfig = {
   cjk,
   code: createLimitedCodePlugin(),
-  math,
-  mermaid,
 };
+
+let mathPluginPromise: Promise<PluginConfig["math"]> | null = null;
+let mermaidPluginPromise: Promise<PluginConfig["mermaid"]> | null = null;
+
+function loadMathPlugin() {
+  mathPluginPromise ??= Promise.all([
+    import("@streamdown/math"),
+    import("katex/dist/katex.min.css"),
+  ]).then(([module]) => module.math);
+  return mathPluginPromise;
+}
+
+function loadMermaidPlugin() {
+  mermaidPluginPromise ??= import("@streamdown/mermaid").then((module) => module.mermaid);
+  return mermaidPluginPromise;
+}
 
 const STREAMDOWN_CONTROLS = {
   code: false,
@@ -59,6 +70,28 @@ export function StreamingMarkdown({
   className,
 }: StreamingMarkdownProps) {
   const markdownClassName = className ? `streaming-markdown ${className}` : "streaming-markdown";
+  const [plugins, setPlugins] = useState(BASE_STREAMDOWN_PLUGINS);
+
+  useEffect(() => {
+    const needsMath = /(^|[^\\])\$\$?|\\\(|\\\[/.test(content);
+    const needsMermaid = /```mermaid\b/i.test(content);
+    if (!needsMath && !needsMermaid) return;
+    let active = true;
+    void Promise.all([
+      needsMath ? loadMathPlugin() : Promise.resolve(undefined),
+      needsMermaid ? loadMermaidPlugin() : Promise.resolve(undefined),
+    ]).then(([math, mermaid]) => {
+      if (active)
+        setPlugins({
+          ...BASE_STREAMDOWN_PLUGINS,
+          ...(math ? { math } : {}),
+          ...(mermaid ? { mermaid } : {}),
+        });
+    });
+    return () => {
+      active = false;
+    };
+  }, [content]);
 
   return (
     <Streamdown
@@ -71,7 +104,7 @@ export function StreamingMarkdown({
       linkSafety={STREAMDOWN_LINK_SAFETY}
       mode="streaming"
       parseIncompleteMarkdown
-      plugins={STREAMDOWN_PLUGINS}
+      plugins={plugins}
       remarkPlugins={STREAMDOWN_REMARK_PLUGINS}
     >
       {content}

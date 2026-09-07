@@ -1,5 +1,5 @@
 import { Box, Flex, IconButton, Tooltip, Badge } from "@radix-ui/themes";
-import { BookPlus, Download, FilePlus, GripVertical, Check, X, Search } from "lucide-react";
+import { BookPlus, Download, FilePlus, GripVertical, Check, X, Search, Upload } from "lucide-react";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,6 +16,7 @@ interface SidebarToolbarProps {
   onChapterSelect: (chapterId: string) => void;
   onCreateChapter: () => void;
   onCreateVolume: () => void;
+  onImport: () => void;
   onExport: () => void;
   onSaveOrder: () => void;
   onCancelOrder: () => void;
@@ -30,6 +31,7 @@ export function SidebarToolbar({
   onChapterSelect,
   onCreateChapter,
   onCreateVolume,
+  onImport,
   onExport,
   onSaveOrder,
   onCancelOrder,
@@ -89,6 +91,14 @@ export function SidebarToolbar({
       return;
     }
     onCreateVolume();
+  };
+
+  const handleImport = () => {
+    if (isAgentLocked) {
+      onLockedAction?.();
+      return;
+    }
+    onImport();
   };
 
   const handleContentSearchToggle = useCallback(() => {
@@ -315,6 +325,15 @@ export function SidebarToolbar({
                     onClick={handleCreateVolume}
                   >
                     <BookPlus size={16} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip content={t("projects.import")}>
+                  <IconButton
+                    variant="ghost"
+                    size="2"
+                    onClick={handleImport}
+                  >
+                    <Upload size={16} />
                   </IconButton>
                 </Tooltip>
                 <Tooltip content={t("writing.chapterExport.open")}>

@@ -91,6 +91,14 @@ class SettingsResponse(BaseModel):
         default=False,
         description="是否在章节编辑器中显示行号",
     )
+    quick_start_enabled: bool = Field(
+        default=False,
+        description="是否显示快捷新会话按钮",
+    )
+    quick_start_prompt: str = Field(
+        default="",
+        description="快捷新会话发送的首条用户提示词",
+    )
 
 
 class SettingsUpdateRequest(BaseModel):
@@ -156,6 +164,14 @@ class SettingsUpdateRequest(BaseModel):
     editor_show_line_numbers: bool | None = Field(
         default=None,
         description="是否在章节编辑器中显示行号",
+    )
+    quick_start_enabled: bool | None = Field(
+        default=None,
+        description="是否显示快捷新会话按钮",
+    )
+    quick_start_prompt: str | None = Field(
+        default=None,
+        description="快捷新会话发送的首条用户提示词",
     )
 
 

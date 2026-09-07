@@ -37,6 +37,8 @@ export interface TaskListItem {
   isFavorited: boolean;
   createdAt: string;
   updatedAt: string;
+  matchedMessageId?: string | null;
+  matchedMessageSnippet?: string | null;
 }
 
 /** 任务详情 */

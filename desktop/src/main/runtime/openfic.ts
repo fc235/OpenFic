@@ -344,7 +344,9 @@ export async function ensureOpenFicRuntime(
   const venvPythonPath = getVenvPythonPath(runtimeDir);
   const uvPath = getUvPath(runtimeDir);
   let pypiEnvironments: Promise<NodeJS.ProcessEnv[]> | null = null;
-  const getPypiEnvironments = () => (pypiEnvironments ??= getPypiEnvironmentsBySpeed(expectedVersion));
+  const getPypiEnvironments = () => (pypiEnvironments ??= bundledWheelPath
+    ? buildPypiEnvironment(DEFAULT_PYPI_INDEX_URL).then((environment) => [environment])
+    : getPypiEnvironmentsBySpeed(expectedVersion));
 
   appendLog("runtime", `开始检查 OpenFic 运行环境：${runtimeDir}`);
   await mkdir(runtimeDir, { recursive: true });
@@ -397,7 +399,8 @@ export async function ensureOpenFicRuntime(
       bundledWheelPath ?? undefined,
     );
     if (bundledWheelPath) {
-      await runUvInstallWithSystemCertsRetry(uvPath, installCommand.args, runtimeDir, onProgress);
+      const [environment] = await getPypiEnvironments();
+      await runUvInstallWithSystemCertsRetry(uvPath, installCommand.args, runtimeDir, onProgress, environment);
     } else {
       const packageIndexEnvironments = await getPypiEnvironments();
       await runInstallWithIndexFallback(packageIndexEnvironments, (environment) =>

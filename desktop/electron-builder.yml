@@ -1,6 +1,7 @@
 appId: com.openfic.app
 productName: OpenFic
 copyright: Copyright © 2026 Syrize
+beforePack: ./scripts/check-backend-wheel.mjs
 
 directories:
   output: dist-electron

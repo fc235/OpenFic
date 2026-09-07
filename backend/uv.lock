@@ -2104,7 +2104,7 @@ requires-dist = [
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10.1" },
     { name = "pypinyin", specifier = ">=0.55.0" },
     { name = "python-multipart", specifier = ">=0.0.21" },
-    { name = "python-socketio", extras = ["asgi"], specifier = ">=5.11.0" },
+    { name = "python-socketio", specifier = ">=5.11.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "pyzmq", specifier = ">=27.1.0" },
     { name = "sqlalchemy", specifier = ">=2.0.45" },

@@ -1,5 +1,15 @@
 import { Box, Flex, IconButton, Tooltip, Badge } from "@radix-ui/themes";
-import { BookPlus, Download, FilePlus, GripVertical, Check, X, Search, Upload } from "lucide-react";
+import {
+  BookPlus,
+  Check,
+  Download,
+  FilePlus,
+  GripVertical,
+  Search,
+  Summary,
+  Upload,
+  X,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -17,6 +27,7 @@ interface SidebarToolbarProps {
   onCreateChapter: () => void;
   onCreateVolume: () => void;
   onImport: () => void;
+  onOpenSummary?: () => void;
   onExport: () => void;
   onSaveOrder: () => void;
   onCancelOrder: () => void;
@@ -32,6 +43,7 @@ export function SidebarToolbar({
   onCreateChapter,
   onCreateVolume,
   onImport,
+  onOpenSummary,
   onExport,
   onSaveOrder,
   onCancelOrder,
@@ -336,6 +348,18 @@ export function SidebarToolbar({
                     <Upload size={16} />
                   </IconButton>
                 </Tooltip>
+                {onOpenSummary && (
+                  <Tooltip content={t("summary.openPanel")}>
+                    <IconButton
+                      variant="ghost"
+                      size="2"
+                      aria-label={t("summary.openPanel")}
+                      onClick={onOpenSummary}
+                    >
+                      <Summary size={16} />
+                    </IconButton>
+                  </Tooltip>
+                )}
                 <Tooltip content={t("writing.chapterExport.open")}>
                   <IconButton
                     variant="ghost"

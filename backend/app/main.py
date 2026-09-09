@@ -610,7 +610,7 @@ def _format_banner_lines(version: str, host: str, port: int, supports_ansi: bool
         "",
         _style_title_line(version, supports_ansi),
         "",
-        _style_link_line("https://github.com/syrizelink/OpenFic", supports_ansi),
+        _style_link_line("https://github.com/fc235/OpenFic", supports_ansi),
         "",
         *[_style_access_line(line, supports_ansi) for line in _format_access_url_lines(host, port)],
         "",

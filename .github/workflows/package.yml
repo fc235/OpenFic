@@ -323,6 +323,21 @@ jobs:
       - name: 构建 Electron 安装包
         working-directory: desktop
         run: pnpm exec electron-builder --config electron-builder.yml ${{ matrix.electron_args }} --publish never
+      - name: 校验安装包自动更新来源
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          configs = list(Path("desktop/dist-electron").rglob("app-update.yml"))
+          assert configs, "Packaged app-update.yml is missing"
+          for config in configs:
+              content = config.read_text(encoding="utf-8")
+              for key, value in {"provider": "github", "owner": "fc235", "repo": "OpenFic"}.items():
+                  assert re.search(rf"^{key}:\s*{value}\s*$", content, re.MULTILINE), f"Unexpected {key} in {config}"
+              print(f"Verified update source: {config}")
+          PY
       - name: 统一安装包架构命名
         working-directory: desktop
         run: node scripts/normalize-artifact-names.mjs

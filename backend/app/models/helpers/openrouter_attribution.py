@@ -1,6 +1,6 @@
 """OpenRouter application attribution settings."""
 
-OPENROUTER_APP_URL = "https://github.com/syrizelink/OpenFic"
+OPENROUTER_APP_URL = "https://github.com/fc235/OpenFic"
 OPENROUTER_APP_TITLE = "OpenFic"
 OPENROUTER_APP_CATEGORIES = ("creative-writing", "writing-assistant")
 

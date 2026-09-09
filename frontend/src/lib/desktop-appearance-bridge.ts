@@ -27,6 +27,12 @@ export interface SocketDiagnosticPayload {
 declare global {
   interface Window {
     openficDesktopHost?: {
+      notifySessionCompleted?: (payload: {
+        sessionId: string;
+        completionId: string;
+        title: string;
+        body: string;
+      }) => Promise<boolean>;
       publishAppearance: (payload: DesktopAppearancePayload) => void;
       publishLanguage: (language: LanguageCode) => void;
       publishSocketDiagnostic: (payload: SocketDiagnosticPayload) => void;

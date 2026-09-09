@@ -626,6 +626,7 @@ export function useAgentSession({
         return;
       }
 
+      const wasRunning = transcriptStateRef.current.isRunning;
       const result = applyTranscriptEvent(event);
       const message = result.message;
       if (event.type === "task_completed" || event.type === "error") void refreshChanges();
@@ -788,6 +789,14 @@ export function useAgentSession({
       }
 
       if (message?.type === "completed" && result.state.status !== "running") {
+        if (wasRunning && result.state.status === "completed" && sessionIdRef.current) {
+          void window.openficDesktopHost?.notifySessionCompleted?.({
+            sessionId: sessionIdRef.current,
+            completionId: event.created_at || event.id || String(message.timestamp),
+            title: "OpenFic",
+            body: i18n.t("assistant.sessionCompletedNotification"),
+          }).catch((error: unknown) => console.warn("Completion notification failed", error));
+        }
         ignoredApprovalIdsRef.current.clear();
         invalidateChapterQueries();
         invalidateNoteQueries();

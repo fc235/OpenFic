@@ -58,6 +58,8 @@ window.addEventListener(
 );
 
 contextBridge.exposeInMainWorld("openficDesktopHost", {
+  notifySessionCompleted: (payload: unknown): Promise<boolean> =>
+    ipcRenderer.invoke("notification:session-completed", payload),
   publishAppearance: (payload: unknown): void => {
     ipcRenderer.sendToHost("openfic:appearance", payload);
   },

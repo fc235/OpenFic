@@ -502,6 +502,7 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
+    if (process.platform === "win32") app.setAppUserModelId("com.openfic.app");
     writeStartupLog("app ready");
     void bootstrap();
   });

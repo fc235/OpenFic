@@ -37,6 +37,7 @@ export const IpcChannels = {
   openProjectHome: "help:open-project-home",
   reportBug: "help:report-bug",
   suggestFeature: "help:suggest-feature",
+  notifySessionCompleted: "notification:session-completed",
   getZoomFactor: "zoom:get-factor",
   saveZoomFactor: "zoom:save-factor",
   zoomFactorChanged: "zoom:changed",

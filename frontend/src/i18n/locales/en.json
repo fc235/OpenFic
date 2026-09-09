@@ -1940,6 +1940,7 @@
     "waitingForAnswer": "Waiting for an answer...",
     "toolApprovalRequiredFallback": "Tool call requires approval",
     "agentRunFailed": "Agent run failed",
+    "sessionCompletedNotification": "Session completed. Click to return to OpenFic and view the result.",
     "agentConnectionFailed": "Agent connection failed: {{error}}",
     "joinAgentSessionFailed": "Failed to join the Agent session",
     "joinAgentSessionTimeout": "Timed out while joining the Agent session",

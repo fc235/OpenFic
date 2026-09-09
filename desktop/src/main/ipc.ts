@@ -48,6 +48,7 @@ import { cancelUpdateDownload, checkForUpdates, downloadUpdate, getUpdateState, 
 import { createStartupProgressTracker, getStartupProgress } from "./startup-progress.js";
 import { appendLog, exportLogs } from "./logging.js";
 import { captureException } from "./telemetry.js";
+import { notifySessionCompleted } from "./session-notifications.js";
 import type { BackendProcessHandle } from "./process.js";
 import type { DesktopConfig, DesktopInstance } from "../shared/config.js";
 
@@ -677,6 +678,9 @@ export function registerIpc(context: IpcContext): void {
     context.shellWindow()?.close();
   });
   ipcMain.handle(IpcChannels.openProjectHome, () => shell.openExternal(PROJECT_HOME_URL));
+  ipcMain.handle(IpcChannels.notifySessionCompleted, (event, payload: unknown) =>
+    notifySessionCompleted(context.shellWindow(), event.sender, payload),
+  );
   ipcMain.handle(IpcChannels.reportBug, () => shell.openExternal(BUG_REPORT_URL));
   ipcMain.handle(IpcChannels.suggestFeature, () => shell.openExternal(FEATURE_SUGGESTION_URL));
 }

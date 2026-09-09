@@ -2003,6 +2003,7 @@
     "waitingForAnswer": "正在等待回答...",
     "toolApprovalRequiredFallback": "工具调用需要审批",
     "agentRunFailed": "Agent 运行失败",
+    "sessionCompletedNotification": "会话已完成，点击返回 OpenFic 查看结果。",
     "agentConnectionFailed": "Agent 连接失败：{{error}}",
     "joinAgentSessionFailed": "加入 Agent 会话失败",
     "joinAgentSessionTimeout": "加入 Agent 会话超时",

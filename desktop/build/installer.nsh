@@ -1,5 +1,60 @@
 !include FileFunc.nsh
 !include LogicLib.nsh
+!include nsDialogs.nsh
+
+!ifndef BUILD_UNINSTALLER
+Var openficDesktopShortcutCheckbox
+Var openficCreateDesktopShortcut
+
+; Keep electron-builder's shortcut lifecycle, but require an explicit choice
+; for interactive installs. Updates retain its existing keepShortcuts behavior.
+!macro _openficSkipDesktopShortcut _a _b _t _f
+  Call openficShouldSkipDesktopShortcut
+  StrCmp "$R9" "true" `${_t}` `${_f}`
+!macroend
+!define /redef isNoDesktopShortcut `"" openficSkipDesktopShortcut ""`
+
+!macro customPageAfterChangeDir
+  Page custom openficShortcutPageCreate openficShortcutPageLeave
+
+  Function openficShouldSkipDesktopShortcut
+    ${StdUtils.TestParameter} $R9 "no-desktop-shortcut"
+    Push $R9
+    ${ifNot} ${isUpdated}
+      Pop $R9
+      ${if} $openficCreateDesktopShortcut != ${BST_CHECKED}
+        StrCpy $R9 "true"
+      ${endif}
+    ${else}
+      Pop $R9
+    ${endif}
+  FunctionEnd
+
+  Function openficShortcutPageCreate
+    ${if} ${isUpdated}
+      Abort
+    ${endif}
+    !insertmacro MUI_HEADER_TEXT "Desktop shortcut / 桌面快捷方式" "Choose whether to create a desktop shortcut. / 请选择是否创建桌面快捷方式。"
+    nsDialogs::Create 1018
+    Pop $0
+    ${if} $0 == error
+      Abort
+    ${endif}
+    ${NSD_CreateCheckbox} 0 12u 100% 24u "Create a desktop shortcut / 创建桌面快捷方式"
+    Pop $openficDesktopShortcutCheckbox
+    ${if} $openficCreateDesktopShortcut == ${BST_CHECKED}
+      ${NSD_Check} $openficDesktopShortcutCheckbox
+    ${else}
+      ${NSD_Uncheck} $openficDesktopShortcutCheckbox
+    ${endif}
+    nsDialogs::Show
+  FunctionEnd
+
+  Function openficShortcutPageLeave
+    ${NSD_GetState} $openficDesktopShortcutCheckbox $openficCreateDesktopShortcut
+  FunctionEnd
+!macroend
+!endif
 
 ; The installer runs the previous uninstaller first, so replace it before that step
 ; to make upgrades from versions without this macro preserve runtime as well.

@@ -5,7 +5,6 @@
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![GitHub Release](https://img.shields.io/github/v/release/fc235/OpenFic?logo=githubactions&logoColor=white&color=yellow)
 ![Release Downloads](https://img.shields.io/github/downloads/fc235/OpenFic/total?logo=github&logoColor=white&label=Release%20downloads&color=yellow)
-![PyPI - Version](https://img.shields.io/pypi/v/openfic?logo=pypi&logoColor=white&color=green)
 [![交流群](https://img.shields.io/badge/交流群-1105304435-12B7F5?logo=qq&logoColor=white)](https://qun.qq.com/universal-share/share?ac=1&authKey=XxKBo33K1IAy%2FejDsGPWOn51pCNk1Bu1%2F2dtldtWCWSdPGor4tZkaboxgrGkz2BS&busi_data=eyJncm91cENvZGUiOiIxMTA1MzA0NDM1IiwidG9rZW4iOiJCY1NuV2s5d1B2QmI2R0ZiMldMbDE4MVRPV1puMFJlWjZIRlZrRjk4WGUwY2wvdUlaWEFPZ1cvV0lLbWl6d3JwIiwidWluIjoiMjUzMjEyNDQwNCJ9&data=B2VDUuvIYSScsKPwMeFB6txn6fj8I18zG6EKsmsrZDwPpmNCoJ7r5NTLtmUUf58MK3Lw9evkkPg28EglHJNONA&svctype=4&tempid=h5_group_info)
 
 ![OpenFic Banner](./banner.svg)
@@ -39,7 +38,7 @@
 
 ## 特性
 
-- 🚀**开箱即用**：使用 Docker 或 pip 快速安装，或是直接使用桌面版，无需复杂配置
+- 🚀**开箱即用**：下载并安装桌面版，无需复杂配置
 - ✒️**专为写作打造**：面向小说写作优化和设计的编辑器，提供便捷、舒适的码字体验
 - 🤝**全面的模型支持**：无缝集成来自多种提供商的模型，或是任何兼容 OpenAI API 的模型
 - 📱**响应式UI**：专为多平台适配设计的界面，在桌面端、移动端和浏览器上享受无缝体验
@@ -55,33 +54,6 @@
 
 
 ## 快速开始
-
-### 🐳 Docker（推荐）
-
-如果使用容器方式安装进行自托管是推荐的安装方式。
-
-```bash
-docker run -d -p 8000:8000 -v "openfic:/data" --name openfic ghcr.io/fc235/openfic:latest
-```
-
-
-### 🐍 Python pip
-
-> [!Warning]  
-> 在开始前，确保你已经安装了Python3.12+
-
-#### 1. 安装OpenFic
-
-```bash
-pip install openfic
-```
-
-#### 2. 启动服务
-
-```bash
-openfic serve
-```
-
 
 ### 🖥桌面应用
 

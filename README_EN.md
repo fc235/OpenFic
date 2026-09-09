@@ -5,7 +5,6 @@
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![GitHub Release](https://img.shields.io/github/v/release/fc235/OpenFic?logo=githubactions&logoColor=white&color=yellow)
 ![Release Downloads](https://img.shields.io/github/downloads/fc235/OpenFic/total?logo=github&logoColor=white&label=Release%20downloads&color=yellow)
-![PyPI - Version](https://img.shields.io/pypi/v/openfic?logo=pypi&logoColor=white&color=green)
 [![交流群](https://img.shields.io/badge/交流群-1105304435-12B7F5?logo=qq&logoColor=white)](https://qun.qq.com/universal-share/share?ac=1&authKey=XxKBo33K1IAy%2FejDsGPWOn51pCNk1Bu1%2F2dtldtWCWSdPGor4tZkaboxgrGkz2BS&busi_data=eyJncm91cENvZGUiOiIxMTA1MzA0NDM1IiwidG9rZW4iOiJCY1NuV2s5d1B2QmI2R0ZiMldMbDE4MVRPV1puMFJlWjZIRlZrRjk4WGUwY2wvdUlaWEFPZ1cvV0lLbWl6d3JwIiwidWluIjoiMjUzMjEyNDQwNCJ9&data=B2VDUuvIYSScsKPwMeFB6txn6fj8I18zG6EKsmsrZDwPpmNCoJ7r5NTLtmUUf58MK3Lw9evkkPg28EglHJNONA&svctype=4&tempid=h5_group_info)
 
 [中文](./README.md) | English
@@ -35,7 +34,7 @@
 
 ## Features
 
-- 🚀 **Ready out of the box**: install with Docker or pip, or use the desktop app directly, with minimal setup
+- 🚀 **Ready out of the box**: download and install the desktop app with minimal setup
 - ✒️ **Built for writing**: an editor designed around fiction writing, with a comfortable long-form writing experience
 - 🤝 **Broad model support**: works with many providers, including any model compatible with the OpenAI API
 - 📱 **Responsive UI**: designed for desktop, mobile, and browser use without breaking the workflow
@@ -50,31 +49,6 @@
 - 📚 **Document import**: sort and import TXT, Markdown, ZIP, and EPUB files, merging them into one volume or splitting by file
 
 ## Quick Start
-
-### 🐳 Docker (Recommended)
-
-If you are self-hosting, Docker is the recommended way to run OpenFic.
-
-```bash
-docker run -d -p 8000:8000 -v "openfic:/data" --name openfic ghcr.io/fc235/openfic:latest
-```
-
-### 🐍 Python pip
-
-> [!WARNING]  
-> Before you start, make sure Python 3.12+ is installed.
-
-#### 1. Install OpenFic
-
-```bash
-pip install openfic
-```
-
-#### 2. Start the server
-
-```bash
-openfic serve
-```
 
 ### 🖥 Desktop App
 

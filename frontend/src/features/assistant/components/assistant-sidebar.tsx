@@ -959,7 +959,11 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
 
         try {
           const bundle = await loadAgentTaskBundle(taskId, {
-            fetchTask,
+            fetchTask: (id) =>
+              fetchTask(
+                id,
+                options.initialTask?.matchedMessageId ? undefined : { messageLimit: 100 },
+              ),
             fetchAgentSessionState,
             fetchActiveSubagents,
             fetchAgentSessionChanges,
@@ -997,6 +1001,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
           const isRemoteRunning = bundle.sessionState?.isRunning ?? false;
 
           agentSidebar.loadSession(sessionId, agentMessages, {
+            historyTask: fullTask,
             reconnect: true,
             isRemoteRunning,
             pendingInterrupts: bundle.sessionState?.interrupts,

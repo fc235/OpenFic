@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import React from "react";
+      import { createRoot } from "react-dom/client";
+      import { Theme } from "@radix-ui/themes";
+      import "@radix-ui/themes/styles.css";
+      import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+      import { useAgentSession } from "../src/features/assistant/hooks/use-agent-session";
+      import { AgentMessages } from "../src/features/assistant/components/agent/agent-messages";
+      import { AppShellContext } from "../src/features/app-shell/components/app-shell-context";
+      import "../src/i18n";
+      const h = React.createElement;
+      function Harness() {
+        const session = useAgentSession({ projectId: "history-test", modelId: "test" });
+        window.historySession = session;
+        return h(
+          "div",
+          {
+            className: "ai-sidebar-messages",
+            style: { height: "500px", overflow: "auto", width: "700px" },
+          },
+          h(AgentMessages, {
+            messages: session.messages,
+            isRunning: session.isRunning,
+            isRollbacking: session.isRollbacking,
+            status: session.status,
+            currentStage: session.currentStage,
+            scrollToBottomKey: session.sessionId,
+            onRollback: session.rollbackToRevision,
+            hasMoreMessages: session.hasMoreMessages,
+            isLoadingOlderMessages: session.isLoadingOlderMessages,
+            olderMessagesError: session.olderMessagesError,
+            onLoadOlder: session.loadOlderMessages,
+          }),
+        );
+      }
+      const noop = () => {};
+      const shell = {
+        isMobile: false,
+        isSidebarOpen: false,
+        isSettingsOpen: false,
+        isAssistantSidebarOpen: false,
+        openSidebar: noop,
+        closeSidebar: noop,
+        toggleSidebar: noop,
+        openSettings: noop,
+        closeSettings: noop,
+        appendToAssistant: noop,
+        openAssistantSidebar: noop,
+        closeAssistantSidebar: noop,
+        registerAssistantSidebarHost: noop,
+        clearAssistantSidebarHost: noop,
+      };
+      createRoot(document.getElementById("root")).render(
+        h(
+          QueryClientProvider,
+          { client: new QueryClient() },
+          h(AppShellContext.Provider, { value: shell }, h(Theme, {}, h(Harness))),
+        ),
+      );
+    </script>
+  </body>
+</html>

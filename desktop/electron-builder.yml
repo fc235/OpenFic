@@ -25,7 +25,7 @@ extraResources:
     to: frontend-dist
     filter:
       - "**/*"
-  - from: ../backend/dist
+  - from: ../backend/dist-desktop
     to: backend-dist
     filter:
       - "openfic-*.whl"

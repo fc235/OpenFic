@@ -4,7 +4,7 @@
  * Agent 消息列表组件
  */
 
-import { Box, Flex, IconButton, Text, Tooltip } from "@radix-ui/themes";
+import { Box, Button, Flex, IconButton, Text, Tooltip } from "@radix-ui/themes";
 import { Check, Copy, GitFork, RotateCcw } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -118,6 +118,10 @@ interface AgentMessagesProps {
   onAtBottomChange?: (isAtBottom: boolean) => void;
   scrollToBottomFnRef?: React.MutableRefObject<(() => void) | null>;
   navigateToMessageId?: string | null;
+  onLoadOlder?: () => Promise<void>;
+  hasMoreMessages?: boolean;
+  isLoadingOlderMessages?: boolean;
+  olderMessagesError?: boolean;
 }
 
 function isRollbackableUserMessage(message: AgentMessageType): boolean {
@@ -230,22 +234,25 @@ const AgentBlockContent = memo(
         gap="2"
         className="agent-message-block-content"
       >
-        {displayItems.map((item) =>
-          item.type === "exploration" ? (
-            <ExplorationMessage
-              key={item.id}
-              messages={item.messages}
-              summary={item.summary}
-            />
-          ) : (
-            <AgentMessageRenderer
-              key={item.id}
-              message={item.message}
-              onOpenMentionChapter={onOpenMentionChapter}
-              onAbortRetry={onAbortRetry}
-            />
-          ),
-        )}
+        {displayItems.map((item) => (
+          <Box
+            key={item.id}
+            data-history-anchor={item.id}
+          >
+            {item.type === "exploration" ? (
+              <ExplorationMessage
+                messages={item.messages}
+                summary={item.summary}
+              />
+            ) : (
+              <AgentMessageRenderer
+                message={item.message}
+                onOpenMentionChapter={onOpenMentionChapter}
+                onAbortRetry={onAbortRetry}
+              />
+            )}
+          </Box>
+        ))}
       </Flex>
     );
   },
@@ -299,6 +306,10 @@ export function AgentMessages({
   onAtBottomChange,
   scrollToBottomFnRef,
   navigateToMessageId,
+  onLoadOlder,
+  hasMoreMessages = false,
+  isLoadingOlderMessages = false,
+  olderMessagesError = false,
 }: AgentMessagesProps) {
   const { t } = useTranslation();
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -315,6 +326,7 @@ export function AgentMessages({
   const viewportMetricsRef = useRef<ScrollViewportMetrics | null>(null);
   const previousIsRunningRef = useRef(isRunning);
   const lastLoadScrollKeyRef = useRef<string | null | undefined>(null);
+  const pendingHistoryAnchorsRef = useRef<Array<{ id: string; top: number }>>([]);
   const copyFeedbackTimerRef = useRef<number | null>(null);
   const restoreScrollRafRef = useRef<number | null>(null);
   const streamingScrollRafRef = useRef<number | null>(null);
@@ -339,6 +351,39 @@ export function AgentMessages({
     () => scrollContainerRef.current ?? bottomRef.current?.closest(".ai-sidebar-messages"),
     [],
   );
+
+  const loadOlder = useCallback(() => {
+    if (!onLoadOlder || !hasMoreMessages || isLoadingOlderMessages || isRollbacking) return;
+    shouldFollowBottomRef.current = false;
+    const container = getScrollContainer();
+    if (container instanceof HTMLElement) {
+      const viewport = container.getBoundingClientRect();
+      pendingHistoryAnchorsRef.current = Array.from(
+        container.querySelectorAll<HTMLElement>("[data-history-anchor]"),
+      ).flatMap((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.bottom > viewport.top && rect.top < viewport.bottom
+          ? [{ id: element.dataset.historyAnchor!, top: rect.top - viewport.top }]
+          : [];
+      });
+    }
+    void onLoadOlder();
+  }, [getScrollContainer, onLoadOlder, hasMoreMessages, isLoadingOlderMessages, isRollbacking]);
+
+  useEffect(() => {
+    const container = getScrollContainer();
+    if (!(container instanceof HTMLElement)) return;
+    const handleHistoryScroll = () => {
+      if (
+        container.scrollTop < 48 &&
+        !olderMessagesError &&
+        !isRestoringLoadedSessionBottomRef.current
+      )
+        loadOlder();
+    };
+    container.addEventListener("scroll", handleHistoryScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleHistoryScroll);
+  }, [getScrollContainer, loadOlder, olderMessagesError]);
 
   const scrollContainerToBottom = useCallback((container: HTMLElement) => {
     container.scrollTop = container.scrollHeight;
@@ -607,6 +652,69 @@ export function AgentMessages({
     () => getVisibleAgentMessageBlocks(messageBlocks, collapsedNodeIds),
     [collapsedNodeIds, messageBlocks],
   );
+  // Virtuoso preserves the visible item when its absolute index stays unchanged.
+  const [historyAnchor, setHistoryAnchor] = useState({
+    messages,
+    blocks: visibleMessageBlocks,
+    session: scrollToBottomKey,
+    firstIndex: 1_000_000_000,
+  });
+  let firstItemIndex = historyAnchor.firstIndex;
+  let restoreMergedBlockAnchor = false;
+  if (
+    historyAnchor.messages !== messages ||
+    historyAnchor.blocks !== visibleMessageBlocks ||
+    historyAnchor.session !== scrollToBottomKey
+  ) {
+    if (historyAnchor.session !== scrollToBottomKey) firstItemIndex = 1_000_000_000;
+    else if (
+      historyAnchor.messages[0] &&
+      messages.findIndex((message) => message.id === historyAnchor.messages[0].id) > 0
+    ) {
+      const prependedBlocks = visibleMessageBlocks.findIndex(
+        (block) => block.id === historyAnchor.blocks[0]?.id,
+      );
+      if (prependedBlocks > 0) firstItemIndex -= prependedBlocks;
+      // A page may begin halfway through an assistant block. Prepending its
+      // earlier messages can grow that block, so use a visible message as
+      // the anchor instead of Virtuoso's whole-item offset.
+      restoreMergedBlockAnchor = prependedBlocks <= 0;
+    }
+    setHistoryAnchor({
+      messages,
+      blocks: visibleMessageBlocks,
+      session: scrollToBottomKey,
+      firstIndex: firstItemIndex,
+    });
+  }
+  const restoreMergedBlockRef = useRef(false);
+  if (restoreMergedBlockAnchor) restoreMergedBlockRef.current = true;
+  useLayoutEffect(() => {
+    if (!restoreMergedBlockRef.current) return;
+    restoreMergedBlockRef.current = false;
+    const container = getScrollContainer();
+    if (!(container instanceof HTMLElement)) return;
+    const anchors = pendingHistoryAnchorsRef.current;
+    pendingHistoryAnchorsRef.current = [];
+    // Virtuoso commits its recalculated items after the parent layout effect.
+    // Restore against those final elements, then correct their measured sizes.
+    const restore = () => {
+      for (const anchor of anchors) {
+        const element = container.querySelector<HTMLElement>(
+          `[data-history-anchor="${CSS.escape(anchor.id)}"]`,
+        );
+        if (!element) continue;
+        container.scrollTop +=
+          element.getBoundingClientRect().top - container.getBoundingClientRect().top - anchor.top;
+        break;
+      }
+    };
+    let frame = requestAnimationFrame(() => {
+      restore();
+      frame = requestAnimationFrame(restore);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [messages, getScrollContainer]);
   const navigationItems = useMemo(
     () =>
       buildAgentMessageNavigationItems(
@@ -828,6 +936,7 @@ export function AgentMessages({
         <Box
           className="agent-message-block"
           data-block-type="user"
+          data-history-anchor={message.id}
         >
           <AgentMessageRenderer
             message={message}
@@ -958,11 +1067,33 @@ export function AgentMessages({
         ref={contentRef}
         className="agent-message-scroll-content"
       >
+        {hasMoreMessages && (
+          <Flex
+            justify="center"
+            p="2"
+          >
+            <Button
+              size="1"
+              variant="ghost"
+              onClick={loadOlder}
+              disabled={isLoadingOlderMessages || isRollbacking}
+            >
+              {t(
+                isLoadingOlderMessages
+                  ? "assistant.loadingOlderMessages"
+                  : olderMessagesError
+                    ? "assistant.retryOlderMessages"
+                    : "assistant.loadOlderMessages",
+              )}
+            </Button>
+          </Flex>
+        )}
         {scrollParent ? (
           <Virtuoso
             ref={virtuosoRef}
             customScrollParent={scrollParent}
             data={visibleMessageBlocks}
+            firstItemIndex={firstItemIndex}
             computeItemKey={(_index, block) => block.id}
             itemContent={(_index, block) => renderBlock(block)}
             heightEstimates={heightEstimates}

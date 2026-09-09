@@ -14,6 +14,7 @@ from app.agent_runtime.attachments import delete_attachments_for_task
 from app.agent_runtime.persistence.child_runs import list_child_runs_for_parent
 from app.agent_runtime.persistence.task_projection import (
     load_task_messages_for_agent_session,
+    load_task_message_page,
 )
 from app.agent_runtime.runner.checkpointer import (
     delete_checkpoints_for_thread,
@@ -25,6 +26,8 @@ from app.api.schemas.task import (
     TaskListResponse,
     TaskResponse,
     TaskUpdateRequest,
+    TaskMessagePage,
+    TaskMetadataResponse,
 )
 from app.core.errors import NotFoundError
 from app.storage.database import get_session
@@ -96,11 +99,16 @@ async def _delete_checkpoint_threads(
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
 async def get_task(
     task_id: str,
+    message_limit: int | None = Query(default=None, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
 ) -> TaskResponse:
     try:
         task = await task_service.get_task(session, task_id)
-        if task.agent_session_id:
+        page = TaskMessagePage()
+        if task.agent_session_id and message_limit is not None:
+            page = await load_task_message_page(session, task.agent_session_id, limit=message_limit)
+            task_messages = page.messages
+        elif task.agent_session_id:
             task_messages = await load_task_messages_for_agent_session(
                 session,
                 task.agent_session_id,
@@ -114,6 +122,8 @@ async def get_task(
             title=task.title,
             mode=_require_agent_mode(task.mode),
             messages=task_messages,
+            has_more_messages=page.has_more,
+            next_before_seq=page.next_before_seq,
             token_input=task.token_input,
             token_output=task.token_output,
             token_cache=task.token_cache,
@@ -129,6 +139,24 @@ async def get_task(
         )
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.get("/tasks/{task_id}/messages", response_model=TaskMessagePage)
+async def get_task_messages(
+    task_id: str,
+    limit: int = Query(default=100, ge=1, le=200),
+    before_seq: int | None = Query(default=None, ge=0),
+    session: AsyncSession = Depends(get_session),
+) -> TaskMessagePage:
+    try:
+        task = await task_service.get_task(session, task_id)
+        if not task.agent_session_id:
+            return TaskMessagePage()
+        return await load_task_message_page(
+            session, task.agent_session_id, limit=limit, before_seq=before_seq,
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
 @router.get("/projects/{project_id}/tasks", response_model=TaskListResponse)
@@ -212,12 +240,12 @@ async def list_tasks(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
-@router.patch("/tasks/{task_id}", response_model=TaskResponse)
+@router.patch("/tasks/{task_id}", response_model=TaskMetadataResponse)
 async def update_task(
     task_id: str,
     request: TaskUpdateRequest,
     session: AsyncSession = Depends(get_session),
-) -> TaskResponse:
+) -> TaskMetadataResponse:
     try:
         task = await task_service.update_task(
             session,
@@ -226,20 +254,12 @@ async def update_task(
             is_favorited=request.is_favorited,
         )
         await session.commit()
-        if task.agent_session_id:
-            task_messages = await load_task_messages_for_agent_session(
-                session,
-                task.agent_session_id,
-            )
-        else:
-            task_messages = []
 
-        return TaskResponse(
+        return TaskMetadataResponse(
             id=task.id,
             project_id=task.project_id,
             title=task.title,
             mode=_require_agent_mode(task.mode),
-            messages=task_messages,
             token_input=task.token_input,
             token_output=task.token_output,
             token_cache=task.token_cache,

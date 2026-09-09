@@ -1763,6 +1763,9 @@
     "generateFailedFallback": "Summary generation failed. Please try again later."
   },
   "assistant": {
+    "loadOlderMessages": "Load older messages",
+    "loadingOlderMessages": "Loading history…",
+    "retryOlderMessages": "Could not load history. Retry",
     "mobileTitle": "Agent",
     "quickStart": "Start with preset",
     "subagentFallbackTitle": "Sub Agent",

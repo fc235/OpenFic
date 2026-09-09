@@ -1826,6 +1826,9 @@
     "generateFailedFallback": "摘要生成失败，请稍后重试。"
   },
   "assistant": {
+    "loadOlderMessages": "加载更早的消息",
+    "loadingOlderMessages": "正在加载历史消息…",
+    "retryOlderMessages": "历史消息加载失败，点击重试",
     "mobileTitle": "Agent",
     "quickStart": "使用预设开始",
     "subagentFallbackTitle": "子智能体",

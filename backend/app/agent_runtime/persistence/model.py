@@ -13,6 +13,9 @@ class AgentRunMessage(SQLModel, table=True):
     """Agent 运行时持久化的消息。"""
 
     __tablename__ = "agent_run_messages"
+    __table_args__ = (
+        Index("ix_agent_run_messages_session_seq", "session_id", "seq"),
+    )
 
     id: str = Field(default_factory=generate_id, primary_key=True)
     session_id: str = Field(index=True, max_length=64)

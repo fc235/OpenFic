@@ -12,9 +12,9 @@ async function runFormalGate(t, fileNames, version = "1.0.0") {
   const root = await mkdtemp(path.join(os.tmpdir(), "openfic-package-gate-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   if (fileNames !== null) {
-    await mkdir(path.join(root, "backend", "dist"), { recursive: true });
+    await mkdir(path.join(root, "backend", "dist-desktop"), { recursive: true });
     for (const fileName of fileNames) {
-      await writeFile(path.join(root, "backend", "dist", fileName), "fixture");
+      await writeFile(path.join(root, "backend", "dist-desktop", fileName), "fixture");
     }
   }
   return beforePack({ packager: { projectDir: path.join(root, "desktop"), appInfo: { version } } });

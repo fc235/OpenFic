@@ -2103,7 +2103,14 @@ export async function resetPromptChain(promptId: string): Promise<VersionWithEnt
 // Task API
 // ============================================
 
-import type { Task, TaskListItem, TaskListResponse, UpdateTaskRequest } from "./task.types";
+import type {
+  Task,
+  TaskMetadata,
+  TaskMessagePage,
+  TaskListItem,
+  TaskListResponse,
+  UpdateTaskRequest,
+} from "./task.types";
 
 function normalizeUtcDateString(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -2137,14 +2144,11 @@ function transformTaskMessage(raw: Record<string, unknown>): Task["messages"][nu
 /**
  * 后端响应字段转换（snake_case -> camelCase）
  */
-function transformTask(raw: Record<string, unknown>): Task {
+function transformTaskMetadata(raw: Record<string, unknown>): TaskMetadata {
   return {
     id: raw.id as string,
     projectId: raw.project_id as string,
     title: raw.title as string,
-    messages: ((raw.messages as Record<string, unknown>[] | undefined) ?? []).map(
-      transformTaskMessage,
-    ),
     tokenInput: Number(raw.token_input ?? raw.tokenInput ?? 0),
     tokenOutput: Number(raw.token_output ?? raw.tokenOutput ?? 0),
     tokenCache: Number(raw.token_cache ?? raw.tokenCache ?? 0),
@@ -2157,6 +2161,17 @@ function transformTask(raw: Record<string, unknown>): Task {
     isFavorited: raw.is_favorited as boolean,
     createdAt: normalizeUtcDateString(raw.created_at),
     updatedAt: normalizeUtcDateString(raw.updated_at),
+  };
+}
+
+function transformTask(raw: Record<string, unknown>): Task {
+  return {
+    ...transformTaskMetadata(raw),
+    messages: ((raw.messages as Record<string, unknown>[] | undefined) ?? []).map(
+      transformTaskMessage,
+    ),
+    hasMoreMessages: raw.has_more_messages === true,
+    nextBeforeSeq: typeof raw.next_before_seq === "number" ? raw.next_before_seq : null,
   };
 }
 
@@ -2190,9 +2205,29 @@ export { subscribeBackgroundEvents, subscribeBackgroundProjection } from "./back
 /**
  * 获取任务详情
  */
-export async function fetchTask(taskId: string): Promise<Task> {
-  const response = await apiClient.get(`/tasks/${taskId}`);
+export async function fetchTask(
+  taskId: string,
+  options?: { messageLimit?: number },
+): Promise<Task> {
+  const response = await apiClient.get(`/tasks/${taskId}`, {
+    params: { message_limit: options?.messageLimit },
+  });
   return transformTask(response.data);
+}
+
+export async function fetchTaskMessages(
+  taskId: string,
+  beforeSeq: number,
+  limit = 100,
+): Promise<TaskMessagePage> {
+  const response = await apiClient.get(`/tasks/${taskId}/messages`, {
+    params: { before_seq: beforeSeq, limit },
+  });
+  return {
+    messages: (response.data.messages as Record<string, unknown>[]).map(transformTaskMessage),
+    hasMore: response.data.has_more === true,
+    nextBeforeSeq: response.data.next_before_seq ?? null,
+  };
 }
 
 /**
@@ -2224,12 +2259,12 @@ export async function fetchTasks(
 /**
  * 更新任务
  */
-export async function updateTask(taskId: string, data: UpdateTaskRequest): Promise<Task> {
+export async function updateTask(taskId: string, data: UpdateTaskRequest): Promise<TaskMetadata> {
   const response = await apiClient.patch(`/tasks/${taskId}`, {
     title: data.title,
     is_favorited: data.is_favorited,
   });
-  return transformTask(response.data);
+  return transformTaskMetadata(response.data);
 }
 
 /**

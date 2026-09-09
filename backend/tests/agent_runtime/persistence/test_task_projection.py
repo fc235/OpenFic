@@ -13,6 +13,58 @@ from app.agent_runtime.persistence.task_projection import (
 
 
 @pytest.mark.asyncio
+async def test_page_keeps_tool_arguments_when_caller_is_on_previous_page(db_session, sample_task):
+    from app.agent_runtime.persistence import task_projection
+
+    async def insert(**kwargs):
+        return await repo.insert_message(
+            db_session, session_id="page-session", task_id=sample_task.id,
+            project_id=sample_task.project_id, status="complete", **kwargs,
+        )
+
+    await insert(role="assistant", tool_calls=[
+        {"id": "call-page", "name": "read_chapter", "args": {"chapter_id": "chapter-1"}},
+    ])
+    await insert(role="tool", tool_call_id="call-page", tool_name="read_chapter", content='{"success":true}')
+    await insert(role="assistant", content="完成", reasoning="推理")
+    page = await task_projection.load_task_message_page(db_session, "page-session", limit=2)
+    assert page.has_more is True
+    assert page.next_before_seq == 1
+    tool = next(message for message in page.messages if message.role == "tool")
+    assert tool.payload["tool_args"] == {"chapter_id": "chapter-1"}
+    assert len(page.messages) == 3  # one persisted assistant becomes reasoning + text
+    assert all(not message.id.endswith(":tool-calls") for message in page.messages)
+
+
+@pytest.mark.asyncio
+async def test_page_uses_sql_limit_and_does_not_read_other_sessions(db_session, sample_task):
+    from sqlalchemy import event
+    from app.agent_runtime.persistence import task_projection
+
+    for index in range(8):
+        await repo.insert_message(
+            db_session, session_id="page-session", task_id=sample_task.id,
+            project_id=sample_task.project_id, status="sent", role="user", content=str(index),
+        )
+    await repo.insert_message(
+        db_session, session_id="other-session", task_id=sample_task.id,
+        project_id=sample_task.project_id, status="sent", role="user", content="other",
+    )
+    statements = []
+    def record(connection, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+    engine = db_session.bind.sync_engine
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        page = await task_projection.load_task_message_page(db_session, "page-session", limit=2)
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+    assert [message.content for message in page.messages] == ["6", "7"]
+    history_reads = [sql for sql in statements if "agent_run_messages.content" in sql]
+    assert history_reads and all("LIMIT" in sql for sql in history_reads)
+
+
+@pytest.mark.asyncio
 async def test_projects_runtime_messages_to_task_messages(
     db_session: AsyncSession,
     sample_task,
@@ -310,6 +362,11 @@ async def test_projection_filters_subagent_internal_rows_from_parent_session(
     assert messages[1].message_type == "tool"
     assert messages[1].payload["tool_name"] == "dispatch_subagent"
 
+    from app.agent_runtime.persistence.task_projection import load_task_message_page
+    page = await load_task_message_page(db_session, sid, limit=2)
+    assert page.messages == []  # caller and dispatch are both outside this page
+    assert page.has_more is True
+
 
 @pytest.mark.asyncio
 async def test_projects_subagent_identity_for_orchestration_tool_results(
@@ -519,6 +576,23 @@ async def test_projects_interrupted_ask_user_before_node_end(
     ]
     assert messages[2].payload["tool_name"] == "ask_user"
     assert messages[2].message_status == "error"
+
+    from app.agent_runtime.persistence.task_projection import load_task_message_page
+
+    for page_size in (1, 2, 3, 4, 5):
+        collected = []
+        cursor = None
+        while True:
+            page = await load_task_message_page(
+                db_session, sid, limit=page_size, before_seq=cursor,
+            )
+            collected = page.messages + collected
+            if not page.has_more:
+                break
+            assert page.next_before_seq is not None
+            assert cursor is None or page.next_before_seq < cursor
+            cursor = page.next_before_seq
+        assert collected == messages, f"Projection changed with page size {page_size}"
 
 
 @pytest.mark.asyncio

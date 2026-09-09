@@ -67,10 +67,12 @@ jobs:
       - name: Build Python package
         working-directory: backend
         run: uv build
+      - name: Build desktop-only backend wheel
+        run: node desktop/scripts/build-backend.mjs
       - uses: actions/upload-artifact@v7
         with:
-          name: backend-dist
-          path: backend/dist/*.whl
+          name: backend-desktop-dist
+          path: backend/dist-desktop/*.whl
 
   docker:
     name: Docker (${{ matrix.platform }})
@@ -134,8 +136,8 @@ jobs:
           path: frontend/dist
       - uses: actions/download-artifact@v8
         with:
-          name: backend-dist
-          path: backend/dist
+          name: backend-desktop-dist
+          path: backend/dist-desktop
       - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -159,7 +161,7 @@ jobs:
         if: matrix.os == 'macos-15'
         working-directory: desktop
         timeout-minutes: 20
-        run: pnpm exec electron tests/main/runtime-smoke.mjs ../backend/dist/openfic-*.whl
+        run: pnpm exec electron tests/main/runtime-smoke.mjs ../backend/dist-desktop/openfic-*.whl
       - name: Build desktop package
         working-directory: desktop
         run: pnpm exec electron-builder --config electron-builder.yml ${{ matrix.target }} --${{ matrix.arch }} --publish never

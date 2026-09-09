@@ -14,7 +14,7 @@ from app.agent_runtime.persistence.child_runs import (
     list_child_runs_for_parent,
 )
 from app.agent_runtime.persistence.types import PersistedMessage
-from app.api.schemas.task import TaskMessage
+from app.api.schemas.task import TaskMessage, TaskMessagePage
 
 
 SUBAGENT_AGENT_IDS = {"explore", "composer", "auditor", "writer", "actor", "reviewer"}
@@ -250,16 +250,19 @@ def _project_rows(
     rows: list[PersistedMessage],
     *,
     identities_by_dispatch_id: dict[str, dict[str, str]] | None = None,
+    initial_tool_args: dict[str, dict[str, Any]] | None = None,
+    has_dispatch_subagent: bool = False,
+    initial_internal_calls: set[str] | None = None,
 ) -> list[TaskMessage]:
-    if _has_dispatch_subagent(rows):
-        subagent_tool_call_ids = _subagent_tool_call_ids(rows)
+    if has_dispatch_subagent or _has_dispatch_subagent(rows):
+        subagent_tool_call_ids = _subagent_tool_call_ids(rows) | (initial_internal_calls or set())
         rows = [
             row
             for row in rows
             if not _is_subagent_internal_row(row, subagent_tool_call_ids)
         ]
     rows = _projection_order(rows)
-    tool_args_by_id: dict[str, dict[str, Any]] = {}
+    tool_args_by_id: dict[str, dict[str, Any]] = dict(initial_tool_args or {})
     for row in rows:
         if row.role != "assistant" or not row.tool_calls:
             continue
@@ -411,4 +414,45 @@ async def load_task_messages_for_agent_session(
     return _project_rows(
         rows,
         identities_by_dispatch_id=_subagent_identity_by_dispatch_id(child_runs),
+    )
+
+
+async def load_task_message_page(
+    session: AsyncSession,
+    session_id: str,
+    *,
+    limit: int = 100,
+    before_seq: int | None = None,
+) -> TaskMessagePage:
+    rows, has_more = await repo.list_session_page(
+        session, session_id, limit=limit, before_seq=before_seq,
+    )
+    if not rows:
+        return TaskMessagePage()
+    known_calls = {
+        call.get("id") for row in rows for call in row.tool_calls or []
+    }
+    missing_calls = {
+        row.tool_call_id for row in rows
+        if row.role == "tool" and row.tool_call_id and row.tool_call_id not in known_calls
+    }
+    arguments, internal_calls = await repo.tool_context_before(
+        session, session_id, before_seq=rows[0].seq, tool_call_ids=missing_calls,
+        internal_agent_ids=SUBAGENT_AGENT_IDS,
+    )
+    # Older parent sessions can contain child internals. Their dispatch may be
+    # outside this page; preserve the full-history projection's filtering rule.
+    has_dispatch = _has_dispatch_subagent(rows)
+    if not has_dispatch and (internal_calls or any(row.agent_id in SUBAGENT_AGENT_IDS for row in rows)):
+        has_dispatch = await repo.session_has_tool_names(session, session_id, SUBAGENT_ORCHESTRATION_TOOL_NAMES)
+    child_runs = await list_child_runs_for_parent(session, session_id) if _has_dispatch_subagent(rows) else []
+    return TaskMessagePage(
+        messages=_project_rows(
+            rows, initial_tool_args=arguments,
+            has_dispatch_subagent=has_dispatch,
+            initial_internal_calls=internal_calls,
+            identities_by_dispatch_id=_subagent_identity_by_dispatch_id(child_runs),
+        ),
+        has_more=has_more,
+        next_before_seq=rows[0].seq if has_more else None,
     )

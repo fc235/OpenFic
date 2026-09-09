@@ -97,6 +97,10 @@ export function useAgentSidebar({
     sendMessage: sendAgentMessage,
     resetSession: resetAgentSession,
     loadSession: loadAgentSession,
+    loadOlderMessages,
+    hasMoreMessages,
+    isLoadingOlderMessages,
+    olderMessagesError,
     disconnectTransport: disconnectAgentTransport,
     reconnectTransport: reconnectAgentTransport,
     compactSession: compactAgentSession,
@@ -232,6 +236,10 @@ export function useAgentSidebar({
         onAtBottomChange={onAtBottomChange}
         scrollToBottomFnRef={scrollToBottomFnRef}
         navigateToMessageId={navigateToMessageId}
+        onLoadOlder={loadOlderMessages}
+        hasMoreMessages={hasMoreMessages}
+        isLoadingOlderMessages={isLoadingOlderMessages}
+        olderMessagesError={olderMessagesError}
       />
     ),
     SpecialPanelsComponent: (

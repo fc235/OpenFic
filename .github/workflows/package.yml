@@ -154,10 +154,12 @@ jobs:
       - name: 构建后端 Python 包
         working-directory: backend
         run: uv build
+      - name: 构建桌面专用后端 wheel
+        run: node desktop/scripts/build-backend.mjs
       - uses: actions/upload-artifact@v7
         with:
-          name: backend-dist
-          path: backend/dist/*.whl
+          name: backend-desktop-dist
+          path: backend/dist-desktop/*.whl
       - uses: actions/cache/save@v5
         if: ${{ steps.pnpm-cache.outputs.cache-hit != 'true' }}
         with:
@@ -281,8 +283,8 @@ jobs:
           path: frontend/dist
       - uses: actions/download-artifact@v8
         with:
-          name: backend-dist
-          path: backend/dist
+          name: backend-desktop-dist
+          path: backend/dist-desktop
       - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}

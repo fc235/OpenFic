@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import subprocess
 from sys import stderr
+from typing import Any
 
 try:
     from hatchling.builders.hooks.plugin.interface import BuildHookInterface
@@ -12,6 +13,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for test runtime with
     class BuildHookInterface:  # type: ignore[no-redef]
         def __init__(self, *args: object, **kwargs: object) -> None:
             self.root = kwargs.get("root", ".")
+            self.target_name = kwargs.get("target_name", "wheel")
 
         def initialize(self, version: str, build_data: dict[str, object]) -> None:
             return None
@@ -49,10 +51,15 @@ def build_frontend_assets(backend_dir: Path, frontend_dir: Path, version: str) -
 
 
 class CustomBuildHook(BuildHookInterface):
-    def initialize(self, version: str, build_data: dict[str, object]) -> None:
+    def initialize(self, version: str, build_data: dict[str, Any]) -> None:
         super().initialize(version, build_data)
         backend_dir = Path(self.root)
         target_dir = backend_dir / "frontend"
+        if self.target_name == "wheel" and os.environ.get("OPENFIC_DESKTOP_BUILD") == "1":
+            stderr.write(">>> Skipping bundled frontend for desktop wheel\n")
+            return
+        if self.target_name == "wheel":
+            build_data.setdefault("force_include", {})[str(target_dir)] = "frontend"
         if version == "editable":
             target_dir.mkdir(parents=True, exist_ok=True)
             stderr.write(">>> Skipping frontend build for editable install\n")

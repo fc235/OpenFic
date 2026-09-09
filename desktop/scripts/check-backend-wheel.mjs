@@ -3,7 +3,7 @@ import path from "node:path";
 import { selectBundledOpenFicWheel } from "../dist/main/runtime/bundled-backend.js";
 
 export default async function beforePack({ packager }) {
-  const backendDir = path.resolve(packager.projectDir, "../backend/dist");
+  const backendDir = path.resolve(packager.projectDir, "../backend/dist-desktop");
   const expectedVersion = packager.appInfo.version;
   let entries;
   try {

@@ -37,10 +37,12 @@ import {
   rollbackAgentRevision,
   cancelAgentSession,
   fetchAgentSessionChanges,
+  fetchTaskMessages,
   uploadAgentImageAttachment,
   submitAgentToolApproval,
 } from "@/lib/api-client";
 import type { CharacterListResponse } from "@/lib/character.types";
+import type { Task } from "@/lib/task.types";
 import type { WorldInfoEntryBriefListResponse } from "@/lib/world-info.types";
 
 import type { ClarificationAnswerItem } from "../components/agent/message-blocks/messages/special/clarification-flow-state";
@@ -69,6 +71,8 @@ import {
   createStreamingDeltaCoalescer,
   isStreamingDeltaEvent,
 } from "../lib/streaming-delta-coalescer";
+import { prependOlderMessages } from "../lib/task-history";
+import { buildAgentMessagesFromTaskMessages } from "../lib/task-message-agent-mapping";
 import { applyTransportReconnectState } from "./agent-session-transport-state";
 import {
   cancelStreamingAgentMessages,
@@ -308,6 +312,12 @@ export function useAgentSession({
   projectIdRef.current = projectId;
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
+  const historyRef = useRef<{ task: Task; beforeSeq: number | null } | null>(null);
+  const historyGenerationRef = useRef(0);
+  const historyLoadingRef = useRef(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
+  const [olderMessagesError, setOlderMessagesError] = useState(false);
   const [changes, setChanges] = useState<AgentSessionChanges | null>(null);
   const [pendingMessage, setPendingMessage] = useState<AgentPendingMessage | null>(null);
   const [status, setStatus] = useState<AgentSessionStatus>("idle");
@@ -430,6 +440,44 @@ export function useAgentSession({
     pendingMessageRef.current = nextPendingMessage;
     setPendingMessage(nextPendingMessage);
   }, []);
+
+  const loadOlderMessages = useCallback(async () => {
+    const history = historyRef.current;
+    if (!history || history.beforeSeq === null || historyLoadingRef.current) return;
+    const generation = historyGenerationRef.current;
+    historyLoadingRef.current = true;
+    setIsLoadingOlderMessages(true);
+    setOlderMessagesError(false);
+    try {
+      const page = await fetchTaskMessages(history.task.id, history.beforeSeq);
+      if (
+        generation !== historyGenerationRef.current ||
+        sessionIdRef.current !== history.task.agentSessionId
+      )
+        return;
+      const older = buildAgentMessagesFromTaskMessages(
+        page.messages,
+        history.task,
+        history.task.createdAt,
+      );
+      updateTranscriptState((current) => ({
+        ...current,
+        messages: prependOlderMessages(current.messages, older),
+      }));
+      historyRef.current = {
+        task: history.task,
+        beforeSeq: page.hasMore ? page.nextBeforeSeq : null,
+      };
+      setHasMoreMessages(page.hasMore && page.nextBeforeSeq !== null);
+    } catch {
+      if (generation === historyGenerationRef.current) setOlderMessagesError(true);
+    } finally {
+      if (generation === historyGenerationRef.current) {
+        historyLoadingRef.current = false;
+        setIsLoadingOlderMessages(false);
+      }
+    }
+  }, [updateTranscriptState]);
 
   const syncCompactingState = useCallback((nextIsCompacting: boolean) => {
     isCompactingRef.current = nextIsCompacting;
@@ -1251,6 +1299,12 @@ export function useAgentSession({
 
   const resetSession = useCallback(() => {
     sessionIdRef.current = null;
+    historyGenerationRef.current += 1;
+    historyRef.current = null;
+    historyLoadingRef.current = false;
+    setHasMoreMessages(false);
+    setIsLoadingOlderMessages(false);
+    setOlderMessagesError(false);
     activeModelIdRef.current = null;
     suppressSocketEventsAfterAbortRef.current = false;
     transportRetryAttemptRef.current = 0;
@@ -1339,9 +1393,22 @@ export function useAgentSession({
         primaryAgentKey?: string;
         pendingInterrupts?: Record<string, unknown>[];
         initialChanges?: AgentSessionChanges | null;
+        historyTask?: Task;
       } = {},
     ) => {
       sessionIdRef.current = existingSessionId;
+      historyGenerationRef.current += 1;
+      const historyTask = options.historyTask;
+      historyRef.current = historyTask
+        ? {
+            task: historyTask,
+            beforeSeq: historyTask.hasMoreMessages ? (historyTask.nextBeforeSeq ?? null) : null,
+          }
+        : null;
+      historyLoadingRef.current = false;
+      setHasMoreMessages(Boolean(historyRef.current?.beforeSeq !== null && historyRef.current));
+      setIsLoadingOlderMessages(false);
+      setOlderMessagesError(false);
       activeModelIdRef.current = null;
       suppressSocketEventsAfterAbortRef.current = false;
       transportRetryAttemptRef.current = 0;
@@ -1466,14 +1533,19 @@ export function useAgentSession({
       }
 
       setIsRollbacking(true);
+      // Discard a page captured before rollback changes the transcript.
+      historyGenerationRef.current += 1;
+      historyLoadingRef.current = false;
+      setIsLoadingOlderMessages(false);
 
       try {
         const result = await rollbackAgentRevision(sessionId, targetMessage.revisionId);
 
         if (result.success) {
-          const targetIndex = messages.findIndex((m) => m.id === messageId);
+          const currentMessages = transcriptStateRef.current.messages;
+          const targetIndex = currentMessages.findIndex((m) => m.id === messageId);
           commitTranscriptState({
-            messages: messages.slice(0, targetIndex),
+            messages: currentMessages.slice(0, targetIndex),
             status: "idle",
             isRunning: false,
             currentStage: "",
@@ -1565,6 +1637,10 @@ export function useAgentSession({
     sendMessage,
     resetSession,
     loadSession,
+    loadOlderMessages,
+    hasMoreMessages,
+    isLoadingOlderMessages,
+    olderMessagesError,
     changes,
     refreshChanges,
     disconnectTransport,

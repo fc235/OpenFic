@@ -40,14 +40,13 @@ class TaskUpdateRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-class TaskResponse(BaseModel):
-    """任务响应。"""
+class TaskMetadataResponse(BaseModel):
+    """任务元数据，不包含对话历史。"""
 
     id: str = Field(description="任务 ID")
     project_id: str = Field(description="项目 ID")
     title: str = Field(description="任务标题")
     mode: AgentMode = Field(description="固定为单一 Agent runtime")
-    messages: list[TaskMessage] = Field(description="对话消息列表")
     token_input: int = Field(default=0, description="输入 token 总数")
     token_output: int = Field(default=0, description="输出 token 总数")
     token_cache: int = Field(default=0, description="缓存命中 token 总数")
@@ -66,6 +65,25 @@ class TaskResponse(BaseModel):
     is_favorited: bool = Field(description="是否收藏")
     created_at: datetime = Field(description="创建时间")
     updated_at: datetime = Field(description="更新时间")
+
+
+class TaskMessagePage(BaseModel):
+    """按持久化消息序号分页；一条记录可能投影成多个显示消息。
+
+    相邻的节点结束与工具结果不会跨页，必要时比请求的条数多读一条记录。
+    """
+
+    messages: list[TaskMessage] = Field(default_factory=list)
+    has_more: bool = False
+    next_before_seq: int | None = None
+
+
+class TaskResponse(TaskMetadataResponse):
+    """任务详情；未请求分页时保留完整历史兼容性。"""
+
+    messages: list[TaskMessage] = Field(description="对话消息列表")
+    has_more_messages: bool = False
+    next_before_seq: int | None = None
 
 
 class TaskListItem(BaseModel):

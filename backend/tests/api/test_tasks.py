@@ -388,8 +388,64 @@ class TestTaskAPI:
         assert data["mode"] == "agent"
         assert data["title"] == "新标题"
         assert data["is_favorited"] is True
-        assert data["messages"] == []
+        assert "messages" not in data
         assert "context_anchor" not in data
+
+    async def test_update_metadata_does_not_read_history(self, client, session):
+        task, _, _ = await self.create_agent_task(client, session)
+        with patch(
+            "app.api.routers.tasks.load_task_messages_for_agent_session",
+            new=AsyncMock(side_effect=AssertionError("metadata must not read history")),
+        ) as projection:
+            response = await client.patch(
+                f"/api/v1/tasks/{task.id}", json={"title": "轻量更新"}
+            )
+        assert response.status_code == 200
+        assert "messages" not in response.json()
+        projection.assert_not_awaited()
+
+    async def test_message_pages_are_bounded_and_stable_after_append(self, client, session):
+        task, project_id, _ = await self.create_agent_task(client, session)
+        for index in range(7):
+            await agent_run_repo.insert_message(
+                session, session_id=task.agent_session_id, task_id=task.id,
+                project_id=project_id, role="user", content=str(index), status="sent",
+            )
+        latest = await client.get(f"/api/v1/tasks/{task.id}", params={"message_limit": 3})
+        assert latest.status_code == 200
+        data = latest.json()
+        assert [m["content"] for m in data["messages"]] == ["4", "5", "6"]
+        assert data["has_more_messages"] is True
+        assert data["next_before_seq"] == 4
+        await agent_run_repo.insert_message(
+            session, session_id=task.agent_session_id, task_id=task.id,
+            project_id=project_id, role="user", content="7", status="sent",
+        )
+        collected = []
+        cursor = data["next_before_seq"]
+        while cursor is not None:
+            response = await client.get(
+                f"/api/v1/tasks/{task.id}/messages", params={"limit": 3, "before_seq": cursor}
+            )
+            assert response.status_code == 200
+            page = response.json()
+            collected = [m["content"] for m in page["messages"]] + collected
+            assert page["has_more"] == (page["next_before_seq"] is not None)
+            cursor = page["next_before_seq"]
+        assert collected == ["0", "1", "2", "3"]
+        full = await client.get(f"/api/v1/tasks/{task.id}")
+        assert len(full.json()["messages"]) == 8
+
+    async def test_message_page_validation_and_empty_task(self, client, session):
+        task, _, _ = await self.create_agent_task(client, session, session_id=None)
+        response = await client.get(f"/api/v1/tasks/{task.id}/messages")
+        assert response.status_code == 200
+        assert response.json() == {"messages": [], "has_more": False, "next_before_seq": None}
+        for params in ({"limit": 0}, {"limit": 201}, {"before_seq": -1}):
+            response = await client.get(f"/api/v1/tasks/{task.id}/messages", params=params)
+            assert response.status_code == 422
+        response = await client.get("/api/v1/tasks/missing/messages")
+        assert response.status_code == 404
 
     async def test_delete_task(
         self, client: AsyncClient, session: AsyncSession

@@ -47,6 +47,8 @@ export interface Task {
   projectId: string;
   title: string;
   messages: TaskMessage[];
+  hasMoreMessages?: boolean;
+  nextBeforeSeq?: number | null;
   tokenInput: number;
   tokenOutput: number;
   tokenCache: number;
@@ -65,6 +67,14 @@ export interface Task {
 export interface TaskListResponse {
   items: TaskListItem[];
   total: number;
+}
+
+export type TaskMetadata = Omit<Task, "messages" | "hasMoreMessages" | "nextBeforeSeq">;
+
+export interface TaskMessagePage {
+  messages: TaskMessage[];
+  hasMore: boolean;
+  nextBeforeSeq: number | null;
 }
 
 /** 更新任务请求 */

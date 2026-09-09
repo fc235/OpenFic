@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import cast
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, true
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
@@ -146,6 +146,106 @@ async def list_by_session(
         raise PersistenceLoadError(
             f"list_by_session failed for session {session_id}"
         ) from e
+
+
+async def list_session_page(
+    session: AsyncSession,
+    session_id: str,
+    *,
+    limit: int,
+    before_seq: int | None = None,
+) -> tuple[list[PersistedMessage], bool]:
+    """Read a bounded window without splitting an adjacent node-end/tool pair.
+
+    Such a pair projects in reverse order, so include one extra message when
+    necessary. At most limit + 2 rows are read, including the cursor lookahead.
+    """
+    if not 1 <= limit <= 200 or (before_seq is not None and before_seq < 0):
+        raise ValueError("Invalid message page bounds")
+    query = select(AgentRunMessage).where(col(AgentRunMessage.session_id) == session_id)
+    if before_seq is not None:
+        query = query.where(col(AgentRunMessage.seq) < before_seq)
+    try:
+        result = await session.execute(query.order_by(col(AgentRunMessage.seq).desc()).limit(limit + 2))
+        rows = result.scalars().all()
+        count = limit
+        if (
+            len(rows) > limit
+            and rows[limit - 1].role == "tool"
+            and rows[limit].message_type == "node_end"
+        ):
+            count += 1
+        return [_row_to_dto(row) for row in reversed(rows[:count])], len(rows) > count
+    except SQLAlchemyError as exc:
+        raise PersistenceLoadError(f"list_session_page failed for session {session_id}") from exc
+
+
+async def tool_context_before(
+    session: AsyncSession,
+    session_id: str,
+    *,
+    before_seq: int,
+    tool_call_ids: set[str],
+    internal_agent_ids: set[str],
+) -> tuple[dict[str, dict], set[str]]:
+    """Fetch only arguments needed by tools whose caller is outside this page.
+
+    JSON is inspected in SQLite, so previous message bodies are never loaded.
+    Later callers win if a legacy session reused a tool call id.
+    """
+    if not tool_call_ids:
+        return {}, set()
+    calls = func.json_each(AgentRunMessage.tool_calls).table_valued("value")
+    call_id = func.json_extract(calls.c.value, "$.id")
+    args = func.json_extract(calls.c.value, "$.args")
+    query = (
+        select(call_id, args, col(AgentRunMessage.agent_id))
+        .select_from(AgentRunMessage)
+        .join(calls, true())
+        .where(
+            col(AgentRunMessage.session_id) == session_id,
+            col(AgentRunMessage.seq) < before_seq,
+            col(AgentRunMessage.role) == "assistant",
+            call_id.in_(tool_call_ids),
+        )
+        .order_by(col(AgentRunMessage.seq).asc())
+    )
+    result = await session.execute(query)
+    arguments: dict[str, dict] = {}
+    internal_calls: set[str] = set()
+    for identifier, raw_args, agent_id in result:
+        if agent_id in internal_agent_ids:
+            internal_calls.add(identifier)
+        else:
+            internal_calls.discard(identifier)
+        if isinstance(raw_args, str):
+            try:
+                parsed = json.loads(raw_args)
+            except ValueError:
+                continue
+            if isinstance(parsed, dict):
+                arguments[identifier] = parsed
+    return arguments, internal_calls
+
+
+async def session_has_tool_names(
+    session: AsyncSession, session_id: str, tool_names: set[str],
+) -> bool:
+    """Check projection context without reading historical message bodies."""
+    calls = func.json_each(AgentRunMessage.tool_calls).table_valued("value")
+    has_call = (
+        select(1).select_from(calls)
+        .where(func.json_extract(calls.c.value, "$.name").in_(tool_names))
+        .correlate(AgentRunMessage).exists()
+    )
+    result = await session.execute(
+        select(col(AgentRunMessage.id))
+        .where(
+            col(AgentRunMessage.session_id) == session_id,
+            or_(col(AgentRunMessage.tool_name).in_(tool_names), has_call),
+        ).limit(1)
+    )
+    return result.scalar_one_or_none() is not None
 
 
 async def list_by_sessions(

@@ -11,6 +11,8 @@ import i18n from "@/i18n";
 import { fetchTask, fetchTasks, updateTask, deleteTask, deleteAllTasks } from "@/lib/api-client";
 import type { Task, TaskListResponse, UpdateTaskRequest } from "@/lib/task.types";
 
+import { mergeTaskMetadata } from "../lib/task-history";
+
 function getTasksQueryKey(
   projectId: string,
   params?: {
@@ -65,7 +67,9 @@ export function useUpdateTask() {
     mutationFn: ({ taskId, data }: { taskId: string; data: UpdateTaskRequest }) =>
       updateTask(taskId, data),
     onSuccess: (updatedTask, variables) => {
-      queryClient.setQueryData(["task", updatedTask.id], updatedTask);
+      queryClient.setQueryData<Task>(["task", updatedTask.id], (current) =>
+        mergeTaskMetadata(current, updatedTask),
+      );
       queryClient.invalidateQueries({
         queryKey: ["tasks", updatedTask.projectId],
         exact: false,

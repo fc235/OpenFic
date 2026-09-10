@@ -77,7 +77,7 @@ async def _resolve_authorized_skill(session: AsyncSession, state: dict, skill_na
     definition = await load_agent_definition(session, agent_key)
     available = await skill_service.list_enabled_skills_by_ids(
         session,
-        [skill_id for skill_id in definition.enabled_skills if skill_id],
+        [skill_id for skill_id in state.get("skill_binding_snapshot", definition.enabled_skills) if skill_id],
     )
     skill = next(
         (s for s in available if s.name.strip() == normalized or s.id.strip() == normalized),

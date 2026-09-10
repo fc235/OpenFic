@@ -789,6 +789,8 @@ export function useAgentSession({
       }
 
       if (message?.type === "completed" && result.state.status !== "running") {
+        void queryClient.invalidateQueries({ queryKey: ["skills"] });
+        void queryClient.invalidateQueries({ queryKey: ["agent-definitions"] });
         if (wasRunning && result.state.status === "completed" && sessionIdRef.current) {
           void window.openficDesktopHost?.notifySessionCompleted?.({
             sessionId: sessionIdRef.current,

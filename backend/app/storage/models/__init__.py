@@ -19,6 +19,7 @@ from app.storage.models.chapter import Chapter
 from app.storage.models.chapter_summary import ChapterSummary
 from app.storage.models.commit import Commit
 from app.storage.models.project import Project
+from app.storage.models.project_reference import ProjectReference
 from app.storage.models.prompt_chain_version import PromptChainVersion
 from app.storage.models.prompt_entry import PromptEntry
 from app.storage.models.revision import Revision
@@ -44,6 +45,7 @@ from app.storage.models.world_info import WorldInfo
 from app.storage.models.world_info_entry import WorldInfoEntry
 
 __all__ = [
+    "ProjectReference",
     "LLMAuditLog",
     "AgentMemory",
     "AgentRule",

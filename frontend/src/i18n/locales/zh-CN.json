@@ -1,4 +1,21 @@
 {
+  "projectScope": {
+    "label": "所属项目",
+    "loading": "正在加载项目名称…",
+    "noProject": "尚未选择项目",
+    "selectProject": "选择项目后，管理该项目的专属资料。",
+    "characters": "当前编辑的是本项目角色。可另行引用其他项目的共享基础设定。",
+    "worldInfo": "当前编辑的是本项目世界书。可另行引用其他项目的共享设定。",
+    "manageShared": "共享资料",
+    "sharingCounts": "引用 {{sources}} 个项目 · 本地资料供 {{targets}} 个项目引用",
+    "sharedHelp": "勾选要引用的来源项目。共享资料在此只读，请切换到来源项目修改；修改会同步影响引用方。本项目资料独立保留，取消引用不会删除来源。仅引用来源的本地资料，不递归读取其引用。",
+    "preview": "查看资料",
+    "previewTitle": "{{name}} · 共享资料（只读）",
+    "usedBy": "修改本地资料会影响以下引用项目：{{names}}",
+    "empty": "来源暂无可用资料。",
+    "loadFailed": "资料加载失败，请关闭后重试。",
+    "saveFailed": "保存失败。请确认 Agent 已停止运行，再重试。"
+  },
   "common": {
     "confirm": "确认",
     "cancel": "取消",
@@ -891,6 +908,18 @@
       "recycleSubagent": {
         "name": "回收子智能体",
         "description": "结束并回收指定子智能体"
+      },
+      "writeSkill": {
+        "name": "保存技能",
+        "description": "将可复用方法保存为新技能，可绑定指定智能体供后续执行使用。"
+      },
+      "readSharedCharacters": {
+        "name": "读取共享角色",
+        "description": "按需读取当前项目显式引用的角色基础资料，来源只读。"
+      },
+      "readSharedWorldEntries": {
+        "name": "读取共享世界书",
+        "description": "按需读取当前项目显式引用的世界书设定，来源只读。"
       },
       "activateSkill": {
         "name": "启用技能",

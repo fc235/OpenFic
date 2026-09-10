@@ -8,6 +8,7 @@ import { Group, Panel, Separator } from "react-resizable-panels";
 import { useSearchParams } from "react-router";
 
 import { PanelLayoutLoading } from "@/components";
+import { ProjectScopeBanner } from "@/components/project-scope-banner";
 import { toast } from "@/components/toast";
 import { AssistantSidebarHost, MobileAppSidebarTrigger, useAppShell } from "@/features/app-shell";
 import type { AssistantSidebarState } from "@/features/assistant";
@@ -414,6 +415,11 @@ export function CharactersPage() {
       className="characters-page mobile-sidebar-swipe-surface"
       direction="column"
     >
+      <ProjectScopeBanner
+        projectId={currentProjectId}
+        projectTitle={projects.find((project) => project.id === currentProjectId)?.title}
+        resource="characters"
+      />
       {currentProjectId && !isMobile && panelLayout.isLoaded ? (
         <Group
           orientation="horizontal"

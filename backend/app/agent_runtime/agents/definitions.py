@@ -54,6 +54,7 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
             enabled_tool_categories=(
                 "orchestration",
                 "interaction",
+                "skill_write",
                 "web_search",
                 "web_fetch",
                 "plan",

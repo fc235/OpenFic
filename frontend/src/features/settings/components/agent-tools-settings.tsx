@@ -131,6 +131,14 @@ const TOOL_DISPLAY_KEYS: Record<string, { name: string; description: string }> =
     name: "settings.agentTool.readCharacter.name",
     description: "settings.agentTool.readCharacter.description",
   },
+  read_shared_characters: {
+    name: "settings.agentTool.readSharedCharacters.name",
+    description: "settings.agentTool.readSharedCharacters.description",
+  },
+  read_shared_world_entries: {
+    name: "settings.agentTool.readSharedWorldEntries.name",
+    description: "settings.agentTool.readSharedWorldEntries.description",
+  },
   create_character: {
     name: "settings.agentTool.createCharacter.name",
     description: "settings.agentTool.createCharacter.description",
@@ -182,6 +190,10 @@ const TOOL_DISPLAY_KEYS: Record<string, { name: string; description: string }> =
   activate_skill: {
     name: "settings.agentTool.activateSkill.name",
     description: "settings.agentTool.activateSkill.description",
+  },
+  write_skill: {
+    name: "settings.agentTool.writeSkill.name",
+    description: "settings.agentTool.writeSkill.description",
   },
   reference_skill: {
     name: "settings.agentTool.referenceSkill.name",

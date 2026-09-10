@@ -16,6 +16,7 @@ SETTING_KEY_AGENT_BYPASS_TOOL_APPROVAL = "agent_bypass_tool_approval"
 
 _PERMISSION_METADATA_BY_TOOL_NAME = {
     "activate_skill": ToolPermissionMetadata("activate_skill", "allow"),
+    "write_skill": ToolPermissionMetadata("write_skill", "ask"),
     "ask_user": ToolPermissionMetadata("ask_user", "allow"),
     "create_character": ToolPermissionMetadata("create_character", "ask"),
     "create_note_category": ToolPermissionMetadata("create_note_category", "ask"),
@@ -46,6 +47,8 @@ _PERMISSION_METADATA_BY_TOOL_NAME = {
     "read_chapter": ToolPermissionMetadata("read_chapter", "allow"),
     "read_chapter_summaries": ToolPermissionMetadata("read_chapter_summaries", "allow"),
     "read_character": ToolPermissionMetadata("read_character", "allow"),
+    "read_shared_characters": ToolPermissionMetadata("read_shared_characters", "allow"),
+    "read_shared_world_entries": ToolPermissionMetadata("read_shared_world_entries", "allow"),
     "read_note": ToolPermissionMetadata("read_note", "allow"),
     "read_range_summaries": ToolPermissionMetadata("read_range_summaries", "allow"),
     "read_world_entry": ToolPermissionMetadata("read_world_entry", "allow"),

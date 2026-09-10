@@ -1,0 +1,85 @@
+.project-scope-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--accent-a5);
+  background: var(--accent-a2);
+  font-family: var(--app-font-family);
+}
+
+.project-scope-banner-icon {
+  flex-shrink: 0;
+  color: var(--accent-11);
+}
+
+.project-scope-banner-content {
+  min-width: 0;
+}
+
+.project-scope-banner-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.project-scope-banner-label {
+  flex-shrink: 0;
+  color: var(--accent-11);
+  font-size: var(--font-size-1);
+}
+
+.project-scope-banner-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--gray-12);
+  font-size: var(--font-size-2);
+}
+
+.project-scope-banner-description {
+  color: var(--gray-11);
+  font-size: var(--font-size-1);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.project-references {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.project-reference-list {
+  display: grid;
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+  max-height: 30vh;
+  overflow-y: auto;
+}
+
+.project-reference-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.project-reference-preview {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--gray-a2);
+  max-height: 30vh;
+  overflow: auto;
+}
+
+.project-reference-preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--app-font-family);
+}

@@ -16,6 +16,7 @@ import { useSearchParams } from "react-router";
 import "./world-info-page.css";
 
 import { PanelLayoutLoading } from "@/components";
+import { ProjectScopeBanner } from "@/components/project-scope-banner";
 import { toast } from "@/components/toast";
 import { AssistantSidebarHost, MobileAppSidebarTrigger, useAppShell } from "@/features/app-shell";
 import type { AssistantSidebarState } from "@/features/assistant";
@@ -749,6 +750,11 @@ export function WorldInfoPage() {
         overflow: "hidden",
       }}
     >
+      <ProjectScopeBanner
+        projectId={currentProjectId}
+        projectTitle={projects.find((project) => project.id === currentProjectId)?.title}
+        resource="worldInfo"
+      />
       <Flex
         direction="column"
         style={{

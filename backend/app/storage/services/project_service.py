@@ -15,6 +15,7 @@ from app.storage.models.project import Project
 from app.storage.repos import chapter_repo, project_repo, volume_repo
 from app.storage.services import task_service, volume_service
 from app.storage.services.revision_service import delete_revision_data_by_project
+from app.storage.services.project_reference_service import delete_project_links
 
 
 @dataclass
@@ -180,4 +181,5 @@ async def delete_project(session: AsyncSession, project_id: str) -> None:
     if project.cover_path:
         delete_cover_file(project.id)
 
+    await delete_project_links(session, project_id)
     await project_repo.delete(session, project)

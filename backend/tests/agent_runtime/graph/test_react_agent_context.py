@@ -27,6 +27,32 @@ class _NoopTool(BaseTool):
         return "ok"
 
 
+@pytest.mark.asyncio
+async def test_skill_snapshot_is_kept_within_loop_and_reloaded_for_next_run():
+    snapshots = []
+
+    async def context(**kwargs):
+        runtime = kwargs["state"]
+        runtime.setdefault("skill_binding_snapshot", ["old"] if not snapshots else ["old", "new"])
+        snapshots.append(list(runtime["skill_binding_snapshot"]))
+        return [HumanMessage(content="hi")]
+
+    model = Mock()
+    model.bind_tools.return_value = model
+    config = ReactAgentConfig(name="writer", tools=[_NoopTool()], termination=TerminationCondition(mode="no_tool_call"), max_iterations=3)
+    initial = {"messages": [HumanMessage(content="hi")], "iteration_count": 0, "is_done": False, "final_output": None}
+    run_config = {"configurable": {"runtime_state": {"model_config": {}, "user_request": "hi"}, "db_session": AsyncMock()}}
+    with patch("app.agent_runtime.graph.react_agent.build_context", side_effect=context), patch(
+        "app.agent_runtime.graph.react_agent._invoke_model", AsyncMock(side_effect=[
+            AIMessage(content="", tool_calls=[{"name": "noop", "args": {}, "id": "call-1"}]),
+            AIMessage(content="done"), AIMessage(content="done"),
+        ])
+    ):
+        await create_react_agent(config, model=model).ainvoke(initial, config=run_config)
+        await create_react_agent(config, model=model).ainvoke(initial, config=run_config)
+    assert snapshots == [["old"], ["old"], ["old", "new"]]
+
+
 def test_llm_call_uses_build_context_when_config_provided() -> None:
     config = ReactAgentConfig(
         name="writer",

@@ -31,7 +31,9 @@ async def build_skills(
 ) -> ContextMessage | None:
     """构建 Skills 上下文片段：列出 agent 可用技能的名称与简介。"""
 
-    enabled_skill_ids = await _get_enabled_skill_ids_for_agent(db_session, agent_name)
+    if "skill_binding_snapshot" not in state:
+        state["skill_binding_snapshot"] = await _get_enabled_skill_ids_for_agent(db_session, agent_name)
+    enabled_skill_ids = state["skill_binding_snapshot"]
     existing_referenced_ids = _state_skill_ids(state)
     node_message_texts = tuple(_node_user_message_texts(node_messages))
     current_request = state.get("user_request")

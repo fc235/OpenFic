@@ -1,4 +1,21 @@
 {
+  "projectScope": {
+    "label": "Project",
+    "loading": "Loading project name…",
+    "noProject": "No project selected",
+    "selectProject": "Select a project to manage its own reference material.",
+    "characters": "You are editing this project's characters. Shared background material can be linked separately.",
+    "worldInfo": "You are editing this project's world settings. Shared settings can be linked separately.",
+    "manageShared": "Shared material",
+    "sharingCounts": "References {{sources}} projects · Referenced by {{targets}} projects",
+    "sharedHelp": "Select source projects to reference. Shared material is read-only here; switch to its source to edit it. Source edits affect referencing projects. Local material stays separate, and unlinking does not delete the source. References include only the source's own material, not its links.",
+    "preview": "View material",
+    "previewTitle": "{{name}} · Shared material (read-only)",
+    "usedBy": "Editing local material affects these referencing projects: {{names}}",
+    "empty": "No material is available in this source.",
+    "loadFailed": "Could not load material. Close and try again.",
+    "saveFailed": "Could not save. Make sure agents have stopped, then try again."
+  },
   "common": {
     "confirm": "Confirm",
     "cancel": "Cancel",
@@ -891,6 +908,18 @@
       "recycleSubagent": {
         "name": "Recycle Subagent",
         "description": "End and recycle a specified subagent."
+      },
+      "writeSkill": {
+        "name": "Save Skill",
+        "description": "Save a new reusable skill to settings and optionally bind it to an agent for subsequent runs."
+      },
+      "readSharedCharacters": {
+        "name": "Read Shared Characters",
+        "description": "Read character backgrounds from explicitly referenced projects. Sources are read-only."
+      },
+      "readSharedWorldEntries": {
+        "name": "Read Shared World Settings",
+        "description": "Read world settings from explicitly referenced projects. Sources are read-only."
       },
       "activateSkill": {
         "name": "Activate Skill",

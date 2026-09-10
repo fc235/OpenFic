@@ -620,6 +620,7 @@ def create_react_agent(
     # Bind tools to model if provided
     bound_model = model.bind_tools(tools) if model else None
     active_audit: LLMCallAudit | None = None
+    skill_binding_snapshot: list[str] | None = None
 
     def update_skill_tool_references(referenced_skill_ids: Iterable[str]) -> None:
         values = list(referenced_skill_ids)
@@ -669,7 +670,7 @@ def create_react_agent(
         state: ReactState, config: Optional[RunnableConfig] = None
     ) -> dict:
         """Call the LLM with bound tools."""
-        nonlocal active_audit
+        nonlocal active_audit, skill_binding_snapshot
         configurable = cast(
             dict[str, Any],
             (config or {}).get("configurable", {}) if config else {},
@@ -702,6 +703,10 @@ def create_react_agent(
             effective_runtime_state = dict(runtime_state)
             if isinstance(runtime_context, Mapping):
                 effective_runtime_state.update(runtime_context)
+            # A new execution loads bindings once; writes cannot change this loop.
+            effective_runtime_state.pop("skill_binding_snapshot", None)
+            if skill_binding_snapshot is not None:
+                effective_runtime_state["skill_binding_snapshot"] = skill_binding_snapshot
             model_config = effective_runtime_state.get("model_config")
             if (
                 isinstance(model_config, Mapping)
@@ -721,6 +726,12 @@ def create_react_agent(
                     node_messages=node_messages,
                     db_session=db_session,
                 )
+            if "skill_binding_snapshot" in effective_runtime_state:
+                skill_binding_snapshot = list(effective_runtime_state["skill_binding_snapshot"])
+                for tool in tools:
+                    tool_state = getattr(tool, "runtime_state", None)
+                    if isinstance(tool_state, dict):
+                        tool_state["skill_binding_snapshot"] = skill_binding_snapshot
         else:
             messages = [
                 ToolMessage(

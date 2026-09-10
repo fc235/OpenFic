@@ -9,6 +9,18 @@ def _skill(name: str, summary: str, content: str = ""):
 
 
 @pytest.mark.asyncio
+async def test_skill_binding_snapshot_survives_settings_change(make_state, mock_session):
+    state = make_state()
+    with patch("app.agent_runtime.context.parts.skills._get_enabled_skill_ids_for_agent", AsyncMock(side_effect=[["old"], ["old", "new"]])) as load, patch(
+        "app.agent_runtime.context.parts.skills.skill_service.list_enabled_skills_by_ids", AsyncMock(return_value=[])
+    ) as fetch:
+        await build_skills(state, "writer", mock_session)
+        await build_skills(state, "writer", mock_session)
+    assert load.await_count == 1
+    assert fetch.await_args.args[1] == ["old"]
+
+
+@pytest.mark.asyncio
 async def test_skills_returns_none_for_unknown_agent(make_state, mock_session):
     state = make_state()
     with patch(

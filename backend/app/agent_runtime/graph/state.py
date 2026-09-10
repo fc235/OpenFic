@@ -15,3 +15,4 @@ class AgentRuntimeState(TypedDict):
     user_attachments: list[dict[str, Any]]
     current_revision_id: str | None
     referenced_skill_ids: NotRequired[list[str]]
+    skill_binding_snapshot: NotRequired[list[str]]

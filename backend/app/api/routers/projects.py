@@ -18,6 +18,7 @@ from app.api.schemas.project import (
     ProjectListResponse,
     ProjectResponse,
 )
+from app.api.routers.project_references import router as references_router
 from app.core.errors import NotFoundError
 from app.core.storage import get_cover_url
 from app.storage.database import get_session
@@ -25,6 +26,8 @@ from app.storage.models.task import Task
 from app.storage.services import project_service, task_service
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+router.include_router(references_router)
 
 
 async def _list_project_checkpoint_thread_ids(

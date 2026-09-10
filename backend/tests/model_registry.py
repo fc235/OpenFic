@@ -27,6 +27,7 @@ def register_sqlmodel_models() -> None:
     from app.storage.models.chapter_summary import ChapterSummary
     from app.storage.models.commit import Commit
     from app.storage.models.project import Project
+    from app.storage.models.project_reference import ProjectReference
     from app.storage.models.prompt_chain_version import PromptChainVersion
     from app.storage.models.prompt_entry import PromptEntry
     from app.storage.models.retrieval_index import RetrievalIndex
@@ -50,6 +51,7 @@ def register_sqlmodel_models() -> None:
     from app.storage.models.writing_activity_event import WritingActivityEvent
 
     _ = (
+        ProjectReference,
         LLMAuditLog,
         AgentMemory,
         AgentRule,

@@ -11,6 +11,7 @@ import "./writing-page.css";
 import { PanelLayoutLoading } from "@/components";
 import { AssistantSidebarHost, MobileAppSidebarTrigger, useAppShell } from "@/features/app-shell";
 import type { AssistantSidebarState } from "@/features/assistant";
+import { useMobileSidebarSwipe } from "@/hooks/use-mobile-sidebar-swipe";
 import { usePersistedPanelLayout } from "@/hooks/use-persisted-panel-layout";
 import { getLastChapterId, setLastChapterId } from "@/lib/local-db";
 
@@ -26,8 +27,6 @@ import { isEmptyTab } from "../lib/tab.types";
 import { useTabsStore, useActiveTabId, useTabs, useTabsLoaded } from "../store/use-tabs-store";
 import { useWritingStore } from "../store/use-writing-store";
 
-const MotionBox = motion.create(Box);
-const MOBILE_SIDEBAR_WIDTH = 320;
 const PANEL_LAYOUT_KEY = "panel-layout.writing";
 const PANEL_IDS = ["left-sidebar", "editor", "right-sidebar"];
 const SummaryPanel = lazy(() =>
@@ -76,6 +75,12 @@ export function WritingPage() {
   const isPageLoading = !isTabsLoaded || isChaptersLoading;
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const mobileSidebarSwipeRef = useMobileSidebarSwipe({
+    isEnabled: isMobile,
+    isOpen: isSidebarOpen,
+    onOpen: () => setIsSidebarOpen(true),
+    onClose: () => setIsSidebarOpen(false),
+  });
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [hasOpenedSummary, setHasOpenedSummary] = useState(false);
   const [hasEditorSelection, setHasEditorSelection] = useState(false);
@@ -374,7 +379,10 @@ export function WritingPage() {
   );
 
   return (
-    <Box className="writing-page-root">
+    <Box
+      {...mobileSidebarSwipeRef}
+      className="writing-page-root mobile-sidebar-swipe-surface"
+    >
       <PageLoadingOverlay isLoading={isPageLoading} />
 
       <Box className="writing-page-shell">
@@ -553,18 +561,9 @@ export function WritingPage() {
                 style={{ pointerEvents: isSidebarOpen ? "auto" : "none" }}
               />
 
-              <MotionBox
-                initial={false}
-                animate={{
-                  x: isSidebarOpen ? 0 : -MOBILE_SIDEBAR_WIDTH,
-                }}
-                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-                className="writing-page-mobile-sidebar-sheet"
-                style={{
-                  width: MOBILE_SIDEBAR_WIDTH,
-                  minWidth: MOBILE_SIDEBAR_WIDTH,
-                  pointerEvents: isSidebarOpen ? "auto" : "none",
-                }}
+              <Box
+                className="mobile-sidebar-sheet writing-page-mobile-sidebar-sheet"
+                data-open={String(isSidebarOpen)}
               >
                 <WritingSidebar
                   projectId={projectId}
@@ -576,7 +575,7 @@ export function WritingPage() {
                   initialCurrentChapterNavigationKey={initialCurrentChapterNavigationKey}
                   onOpenSummary={handleOpenSummary}
                 />
-              </MotionBox>
+              </Box>
             </div>
           </Flex>
         ) : (

@@ -254,6 +254,7 @@ export function SidebarToolbar({
                       border: "none",
                       outline: "none",
                       background: "transparent",
+                      fontFamily: "var(--app-font-family)",
                       fontSize: "var(--font-size-base)",
                       lineHeight: "var(--line-height-2)",
                       color: "var(--gray-12)",

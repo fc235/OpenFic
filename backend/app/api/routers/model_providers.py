@@ -33,6 +33,7 @@ from app.core.errors import NotFoundError
 from app.settings import settings
 from app.storage.database import get_session
 from app.models.services import ModelProviderService
+from app.models.services.deepseek_balance import DeepSeekBalance, fetch_deepseek_balance
 
 router = APIRouter(prefix="/model-providers", tags=["model-providers"])
 
@@ -55,6 +56,19 @@ def get_provider_service(
 ) -> ModelProviderService:
     """获取提供商服务实例。"""
     return ModelProviderService(encryption_service, catalog_service)
+
+
+@router.get("/{provider_id}/balance", response_model=DeepSeekBalance)
+async def get_provider_balance(
+    provider_id: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    service: Annotated[ModelProviderService, Depends(get_provider_service)],
+) -> DeepSeekBalance:
+    try:
+        provider = await service.get_provider_by_id(session, provider_id)
+    except NotFoundError as exc:
+        raise HTTPException(404, "模型提供商不存在") from exc
+    return await fetch_deepseek_balance(provider.url, service.get_decrypted_api_key(provider))
 
 
 def _parse_custom_headers(raw_headers: str | None) -> list[dict[str, str]] | None:

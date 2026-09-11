@@ -2,6 +2,22 @@ import pytest
 
 
 @pytest.mark.asyncio
+async def test_reference_brief_and_detail_respect_source_and_unlink(client):
+    a, b, c = [(await client.post("/api/v1/projects", data={"title": title})).json()["id"] for title in ["A", "B", "C"]]
+    owned = (await client.post(f"/api/v1/projects/{b}/characters", data={"name": "共享角色", "description": "正文"})).json()
+    foreign = (await client.post(f"/api/v1/projects/{c}/characters", data={"name": "其他角色", "description": "不能读取"})).json()
+    url = f"/api/v1/projects/{a}/references/characters"
+    await client.put(url, json={"source_project_ids": [b]})
+    brief = await client.get(f"{url}/{b}", params={"brief": True})
+    assert brief.json() == {"items": [{"id": owned["id"], "name": "共享角色"}]}
+    detail = await client.get(f"{url}/{b}", params={"item_id": owned["id"]})
+    assert detail.json()["items"][0]["content"] == "正文"
+    assert (await client.get(f"{url}/{b}", params={"item_id": foreign["id"]})).status_code == 404
+    await client.put(url, json={"source_project_ids": []})
+    assert (await client.get(f"{url}/{b}", params={"item_id": owned["id"]})).status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_reference_is_explicit_live_and_removable(client):
     ids = [(await client.post("/api/v1/projects", data={"title": title})).json()["id"] for title in ["A", "B", "C"]]
     a, b, c = ids
@@ -42,6 +58,11 @@ async def test_world_reference_is_not_transitive_and_omits_disabled_entries(clie
     await client.put(f"/api/v1/projects/{b}/references/worldInfo", json={"source_project_ids":[c]})
     result = await client.get(f"/api/v1/projects/{a}/references/worldInfo/{b}")
     assert [item["name"] for item in result.json()["items"]] == ["基础"]
+    brief = await client.get(f"/api/v1/projects/{a}/references/worldInfo/{b}", params={"brief": True})
+    assert [item["name"] for item in brief.json()["items"]] == ["基础"]
+    assert "content" not in brief.json()["items"][0]
+    detail = await client.get(f"/api/v1/projects/{a}/references/worldInfo/{b}", params={"item_id": brief.json()["items"][0]["id"]})
+    assert detail.json()["items"][0]["content"] == "共享设定"
     assert (await client.get(f"/api/v1/projects/{a}/references/worldInfo/{c}")).status_code == 404
     assert (await client.get(f"/api/v1/projects/{a}/references/characters/{b}")).status_code == 404
 

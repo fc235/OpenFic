@@ -54,6 +54,7 @@ import type { TaskListItem } from "@/lib/task.types";
 import { useLlmModelOptions } from "@/lib/use-llm-model-options";
 
 import "./assistant-sidebar.css";
+import { DeepSeekBalance } from "./deepseek-balance";
 
 import { useSubagentSession } from "../hooks/use-subagent-session";
 import { useTasks, useUpdateTask } from "../hooks/use-tasks";
@@ -110,7 +111,6 @@ interface SessionTotalUsageState {
   tokenInput: number;
   tokenOutput: number;
   tokenCache: number;
-  cost: number;
 }
 
 function upsertActiveSubagent(
@@ -151,7 +151,6 @@ function createSessionTotalUsageState(
     tokenInput: 0,
     tokenOutput: 0,
     tokenCache: 0,
-    cost: 0,
   };
 }
 
@@ -226,23 +225,6 @@ function getSubagentStatusLabel(
 function formatTokenCount(value: number): string {
   if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
-  return String(value);
-}
-
-const COST_FORMATTER = new Intl.NumberFormat("en-US", {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
-});
-const SMALL_COST_FORMATTER = new Intl.NumberFormat("en-US", {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 3,
-});
-
-function formatCost(value: number): string {
-  return (value < 1 ? SMALL_COST_FORMATTER : COST_FORMATTER).format(value);
-}
-
-function formatDetailedCost(value: number): string {
   return String(value);
 }
 
@@ -530,7 +512,6 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
             tokenInput: fullTask.tokenInput,
             tokenOutput: fullTask.tokenOutput,
             tokenCache: fullTask.tokenCache,
-            cost: fullTask.cost,
           });
           setConversationUsageBySession((current) => ({
             ...current,
@@ -596,7 +577,6 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
             tokenInput: payload.tokenInput,
             tokenOutput: payload.tokenOutput,
             tokenCache: payload.tokenCache,
-            cost: payload.cost,
           };
         });
       },
@@ -620,7 +600,6 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
             tokenInput: current.tokenInput + payload.tokenInput,
             tokenOutput: current.tokenOutput + payload.tokenOutput,
             tokenCache: current.tokenCache + payload.tokenCache,
-            cost: current.cost + payload.cost,
           };
         });
       },
@@ -746,10 +725,8 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
         tokenInput: sessionTotalUsage.tokenInput,
         tokenOutput: sessionTotalUsage.tokenOutput,
         tokenCache: sessionTotalUsage.tokenCache,
-        cost: sessionTotalUsage.cost,
       }),
       [
-        sessionTotalUsage.cost,
         sessionTotalUsage.tokenCache,
         sessionTotalUsage.tokenInput,
         sessionTotalUsage.tokenOutput,
@@ -1035,7 +1012,6 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
             tokenInput: fullTask.tokenInput,
             tokenOutput: fullTask.tokenOutput,
             tokenCache: fullTask.tokenCache,
-            cost: fullTask.cost,
           });
           setConversationUsageBySession((current) => ({
             ...current,
@@ -1555,7 +1531,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
                     gap="1"
                     className="ai-sidebar-token-metric"
                   >
-                    <ArrowBigUp size={13} />
+                    <ArrowBigDown size={13} />
                     <Text
                       as="span"
                       size="1"
@@ -1574,7 +1550,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
                     gap="1"
                     className="ai-sidebar-token-metric"
                   >
-                    <ArrowBigDown size={13} />
+                    <ArrowBigUp size={13} />
                     <Text
                       as="span"
                       size="1"
@@ -1601,26 +1577,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
                   </Flex>
                 </Tooltip>
               </Flex>
-              {sessionTotalDisplay.cost > 0 ? (
-                <Tooltip
-                  content={t("assistant.totalCost", {
-                    cost: formatDetailedCost(sessionTotalDisplay.cost),
-                  })}
-                >
-                  <Flex
-                    align="center"
-                    className="ai-sidebar-cost ai-sidebar-token-metric"
-                  >
-                    <Text
-                      as="span"
-                      size="1"
-                      className="ai-sidebar-token-number"
-                    >
-                      $ {formatCost(sessionTotalDisplay.cost)}
-                    </Text>
-                  </Flex>
-                </Tooltip>
-              ) : null}
+              <DeepSeekBalance modelId={effectiveModelId} isRunning={agentSidebar.isRunning || subagentSession.isRunning} />
               <Flex
                 align="center"
                 className="ai-sidebar-context-wrap"

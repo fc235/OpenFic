@@ -197,9 +197,23 @@
   font-variant-numeric: tabular-nums;
 }
 
-.ai-sidebar-cost {
+.ai-sidebar-balance {
   flex: 0 0 auto;
   white-space: nowrap;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.ai-sidebar-balance:focus-visible {
+  outline: 2px solid var(--accent-8);
+  outline-offset: 3px;
+}
+
+.ai-sidebar-balance:disabled {
+  cursor: default;
 }
 
 .agent-message-card {

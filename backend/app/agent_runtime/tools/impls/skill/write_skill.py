@@ -19,8 +19,8 @@ Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 
 
 class SkillReferenceInput(BaseModel):
-    title: Name
-    content: Text
+    title: Name = Field(description="参考文档标题")
+    content: Text = Field(description="参考文档完整正文")
 
 
 class WriteSkillInput(BaseModel):

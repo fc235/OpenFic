@@ -18,14 +18,12 @@ import {
   MAX_EDITOR_CONTENT_CHARACTERS,
   MAX_EDITOR_CONTENT_LINES,
 } from "@/lib/editor-content-limits";
-import { countTokens } from "@/lib/tiktoken-utils";
+import { countTokensAsync } from "@/lib/token-count-async";
 import type {
   WorldInfoEntry,
   WorldInfoEntryBrief,
   WorldInfoEntryBriefListResponse,
 } from "@/lib/world-info.types";
-
-import { resolveRemoteEntryEditorState } from "./entry-editor-state";
 
 interface EntryEditorProps {
   /** 条目数据 */
@@ -57,6 +55,7 @@ export function EntryEditor({
   const queryClient = useQueryClient();
 
   const [name, setName] = useState(entry.name);
+  const [draftContent, setDraftContent] = useState(entry.content);
   const [tokenCount, setTokenCount] = useState<number>(entry.tokenCount || 0);
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -116,37 +115,42 @@ export function EntryEditor({
     if (isSavingRef.current || !hasChangesRef.current) return;
     isSavingRef.current = true;
     setIsSaving(true);
-
-    const content = savedContentRef.current;
-    const newName = savedNameRef.current.trim();
-    const contentLimit = getEditorContentLimit(content);
-    if (!contentLimit.isWithinLimit) {
-      showContentLimitToast(content);
-      isSavingRef.current = false;
-      setIsSaving(false);
-      return;
-    }
-    rejectedContentRef.current = null;
-    const hasDuplicateName = entries.some((item) => item.id !== entry.id && item.name === newName);
-    if (hasDuplicateName) {
-      toast.error(t("worldInfo.duplicateEntryName"));
-      isSavingRef.current = false;
-      setIsSaving(false);
-      return;
-    }
-
-    const newTokenCount = countTokens(content);
-    setTokenCount(newTokenCount);
-
     try {
-      const updated = await updateWorldInfoEntry(entry.id, {
-        name: newName,
-        content,
-        tokenCount: newTokenCount,
-      });
-      updateCaches(updated);
-      hasChangesRef.current = false;
-      setHasChanges(false);
+      while (hasChangesRef.current) {
+        const content = savedContentRef.current;
+        const newName = savedNameRef.current.trim();
+        const contentLimit = getEditorContentLimit(content);
+        if (!contentLimit.isWithinLimit) {
+          showContentLimitToast(content);
+          isSavingRef.current = false;
+          setIsSaving(false);
+          return;
+        }
+        rejectedContentRef.current = null;
+        const hasDuplicateName = entries.some(
+          (item) => item.id !== entry.id && item.name === newName,
+        );
+        if (hasDuplicateName) {
+          toast.error(t("worldInfo.duplicateEntryName"));
+          isSavingRef.current = false;
+          setIsSaving(false);
+          return;
+        }
+
+        const newTokenCount = await countTokensAsync(content);
+
+        const updated = await updateWorldInfoEntry(entry.id, {
+          name: newName,
+          content,
+          tokenCount: newTokenCount,
+        });
+        updateCaches(updated);
+        hasChangesRef.current =
+          savedContentRef.current !== content || savedNameRef.current.trim() !== newName;
+        setHasChanges(hasChangesRef.current);
+      }
+    } catch {
+      toast.error(t("common.saveFailed"));
     } finally {
       isSavingRef.current = false;
       setIsSaving(false);
@@ -176,7 +180,7 @@ export function EntryEditor({
   const handleContentChange = useCallback(
     (markdown: string) => {
       savedContentRef.current = markdown;
-      setTokenCount(countTokens(markdown));
+      setDraftContent(markdown);
       hasChangesRef.current = true;
       setHasChanges(true);
       triggerAutoSave();
@@ -192,38 +196,41 @@ export function EntryEditor({
     void flushSave();
   }, [flushSave]);
 
+  const flushSaveRef = useRef(flushSave);
+  flushSaveRef.current = flushSave;
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
       }
       if (hasChangesRef.current) {
-        void flushSave();
+        void flushSaveRef.current();
       }
     };
-  }, [flushSave]);
+  }, []);
 
   useEffect(() => {
-    const nextState = resolveRemoteEntryEditorState(
-      {
-        name: savedNameRef.current,
-        content: savedContentRef.current,
-        tokenCount,
-      },
-      {
-        name: entry.name,
-        content: entry.content,
-        tokenCount: entry.tokenCount || 0,
-      },
-      hasChangesRef.current,
-    );
     if (hasChangesRef.current) return;
 
-    savedNameRef.current = nextState.name;
-    savedContentRef.current = nextState.content;
-    setName(nextState.name);
-    setTokenCount(nextState.tokenCount);
-  }, [entry.content, entry.name, entry.tokenCount, tokenCount]);
+    savedNameRef.current = entry.name;
+    savedContentRef.current = entry.content;
+    setName(entry.name);
+    setDraftContent(entry.content);
+    setTokenCount(entry.tokenCount || 0);
+  }, [entry.content, entry.name, entry.tokenCount]);
+
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(() => {
+      void countTokensAsync(draftContent).then((count) => {
+        if (active) setTokenCount(count);
+      });
+    }, 300);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [draftContent]);
 
   useEffect(() => {
     if (scrollToLine == null || scrollToLine < 1 || scrolledRef.current) return;

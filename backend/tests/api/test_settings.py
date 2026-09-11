@@ -51,6 +51,8 @@ EXPECTED_AGENT_TOOL_PERMISSIONS = [
     {"tool_name": "read_character", "mode": "allow"},
     {"tool_name": "read_note", "mode": "allow"},
     {"tool_name": "read_range_summaries", "mode": "allow"},
+    {"tool_name": "read_shared_characters", "mode": "allow"},
+    {"tool_name": "read_shared_world_entries", "mode": "allow"},
     {"tool_name": "read_world_entry", "mode": "allow"},
     {"tool_name": "recycle_subagent", "mode": "allow"},
     {"tool_name": "reference_skill", "mode": "allow"},
@@ -61,6 +63,7 @@ EXPECTED_AGENT_TOOL_PERMISSIONS = [
     {"tool_name": "write_chapter", "mode": "ask"},
     {"tool_name": "write_note", "mode": "ask"},
     {"tool_name": "write_plan", "mode": "ask"},
+    {"tool_name": "write_skill", "mode": "ask"},
 ]
 
 

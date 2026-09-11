@@ -11,7 +11,7 @@ import {
   MAX_EDITOR_CONTENT_CHARACTERS,
   MAX_EDITOR_CONTENT_LINES,
 } from "@/lib/editor-content-limits";
-import { countTokens } from "@/lib/tiktoken-utils";
+import { countTokensAsync } from "@/lib/token-count-async";
 
 const AUTO_SAVE_DELAY = 1500;
 
@@ -33,7 +33,7 @@ export function CharacterEditor({
   const { t } = useTranslation();
   const [name, setName] = useState(character?.name ?? "");
   const [description, setDescription] = useState(character?.description ?? "");
-  const [tokenCount, setTokenCount] = useState(countTokens(character?.description ?? ""));
+  const [tokenCount, setTokenCount] = useState(0);
   const [hasChanges, setHasChanges] = useState(false);
   const editorRef = useRef<Editor | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,21 +64,25 @@ export function CharacterEditor({
 
   const flushSave = useCallback(async () => {
     if (!character || isSavingRef.current || !hasChangesRef.current) return;
-    const nextName = latestValueRef.current.name.trim();
-    if (!nextName) return;
-    const description = latestValueRef.current.description;
-    const contentLimit = getEditorContentLimit(description);
-    if (!contentLimit.isWithinLimit) {
-      showContentLimitToast(description);
-      return;
-    }
-    rejectedContentRef.current = null;
-
     isSavingRef.current = true;
     try {
-      await onSave({ name: nextName, description });
-      hasChangesRef.current = false;
-      setHasChanges(false);
+      while (hasChangesRef.current) {
+        const nextName = latestValueRef.current.name.trim();
+        if (!nextName) return;
+        const description = latestValueRef.current.description;
+        const contentLimit = getEditorContentLimit(description);
+        if (!contentLimit.isWithinLimit) {
+          showContentLimitToast(description);
+          return;
+        }
+        rejectedContentRef.current = null;
+
+        await onSave({ name: nextName, description });
+        hasChangesRef.current =
+          latestValueRef.current.name.trim() !== nextName ||
+          latestValueRef.current.description !== description;
+        setHasChanges(hasChangesRef.current);
+      }
     } catch {
       hasChangesRef.current = true;
       setHasChanges(true);
@@ -109,7 +113,6 @@ export function CharacterEditor({
   const handleContentChange = useCallback(
     (value: string) => {
       setDescription(value);
-      setTokenCount(countTokens(value));
       latestValueRef.current.description = value;
       hasChangesRef.current = true;
       setHasChanges(true);
@@ -142,7 +145,6 @@ export function CharacterEditor({
     }
     setName(character.name);
     setDescription(character.description);
-    setTokenCount(countTokens(character.description));
     latestValueRef.current = {
       name: character.name,
       description: character.description,
@@ -151,11 +153,27 @@ export function CharacterEditor({
     setHasChanges(false);
   }, [character]);
 
+  const flushSaveRef = useRef(flushSave);
+  flushSaveRef.current = flushSave;
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      void flushSaveRef.current();
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(() => {
+      void countTokensAsync(description).then((count) => {
+        if (active) setTokenCount(count);
+      });
+    }, 300);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [description]);
 
   if (isLoading) {
     return (

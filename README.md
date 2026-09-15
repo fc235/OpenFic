@@ -1,98 +1,29 @@
-# OpenFic
+# OpenFic 分支说明
 
-![GitHub Repo stars](https://img.shields.io/github/stars/fc235/OpenFic)
-![License](https://img.shields.io/badge/License-Apache_2.0-red)
-![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
-![GitHub Release](https://img.shields.io/github/v/release/fc235/OpenFic?logo=githubactions&logoColor=white&color=yellow)
-![Release Downloads](https://img.shields.io/github/downloads/fc235/OpenFic/total?logo=github&logoColor=white&label=Release%20downloads&color=yellow)
-[![交流群](https://img.shields.io/badge/交流群-1105304435-12B7F5?logo=qq&logoColor=white)](https://qun.qq.com/universal-share/share?ac=1&authKey=XxKBo33K1IAy%2FejDsGPWOn51pCNk1Bu1%2F2dtldtWCWSdPGor4tZkaboxgrGkz2BS&busi_data=eyJncm91cENvZGUiOiIxMTA1MzA0NDM1IiwidG9rZW4iOiJCY1NuV2s5d1B2QmI2R0ZiMldMbDE4MVRPV1puMFJlWjZIRlZrRjk4WGUwY2wvdUlaWEFPZ1cvV0lLbWl6d3JwIiwidWluIjoiMjUzMjEyNDQwNCJ9&data=B2VDUuvIYSScsKPwMeFB6txn6fj8I18zG6EKsmsrZDwPpmNCoJ7r5NTLtmUUf58MK3Lw9evkkPg28EglHJNONA&svctype=4&tempid=h5_group_info)
+这是 [syrizelink/OpenFic](https://github.com/syrizelink/OpenFic) 的个人维护分支。
 
-![OpenFic Banner](./banner.svg)
+OpenFic 的基础功能、部署方式和使用说明请直接查看[上游 README](https://github.com/syrizelink/OpenFic#readme)。这里仅记录本分支与上游的不同之处。
 
-中文 | [English](./README_EN.md)
+[下载本分支版本](https://github.com/fc235/OpenFic/releases) · [查看上游版本](https://github.com/syrizelink/OpenFic/releases) · [English](./README_EN.md)
 
-**OpenFic** 是一款专为小说创作打造的跨平台、用户友好、AI Native 的一站式 Vibe Writing 工具，构建设定、设计角色、定制工作流，让Agent适应你的写作流程，而非反之。
+## 主要改动
 
-![Demo Screenshot](./demo.png)
+### 桌面版
 
+- Windows 安装包自带同版本后端，启动时会检查桌面端和后端版本是否一致。
+- 关闭窗口时可以选择只关前端，或者连同本地后端一起退出。这个选择可以记住。
+- 只关前端时，后台任务和局域网访问不会停止。再次打开软件会接回原来的后端。
+- 设置中可以开启局域网访问，并查看、复制访问地址或使用二维码在手机上打开。
+- 切换局域网访问状态时，会等正在运行的 Agent 任务结束后再重启后端。
+- 发布文件、自动更新、问题反馈和 Docker 镜像均使用 `fc235/OpenFic`。
 
-## 何时使用
+### 编辑器和操作
 
-> [!Tip]  
-> *OpenFic 的设计理念是让 Agent 深度参与小说创作过程，而不是替你一键生成没有灵魂的文字，它首先是用户友好的小说写作工具，其次才是面向写作的 AI Agent 系统。*
+- 笔记和章节共用一套编辑器界面。笔记支持查找、替换和快捷键，并继续使用 Markdown 保存。
+- 修复项目卡片偶尔点不开的问题，同时支持使用键盘打开项目。
+- 在对话框的模型菜单中，单击切换当前模型，双击设为默认模型。
+- 使用 DeepSeek 官方接口时，余额提示会根据北京时间显示峰时或谷时，并随机显示一条对应文案。
 
-#### 它适合这些场景：
+## 其他
 
-- 正在写中长篇小说，需要长期维护世界观、角色、伏笔和章节信息
-- 希望 Agent 协助你发散思路、检查前后文、补全细节
-- 提供完整的设定、文风和剧情走向，希望 Agent 帮助你将灵感转化为文字
-- 你有自己的写作流程，希望按需求自定义 Prompt、Agent 和工作流
-- 看重本地数据保存、上下文管理和可持续的创作协作
-
-#### 它不适合这些场景：
-
-- 输入一句提示词，然后自动得到一整本小说，这是不切实际的
-- 主要需要短篇文案、社媒内容或一次性的通用文本生成
-- 你不打算维护复杂的设定信息，也不需要长期上下文和写作流程管理
-
-
-## 特性
-
-- 🚀**开箱即用**：下载并安装桌面版，无需复杂配置
-- ✒️**专为写作打造**：面向小说写作优化和设计的编辑器，提供便捷、舒适的码字体验
-- 🤝**全面的模型支持**：无缝集成来自多种提供商的模型，或是任何兼容 OpenAI API 的模型
-- 📱**响应式UI**：专为多平台适配设计的界面，在桌面端、移动端和浏览器上享受无缝体验
-- 🧩**定制化工作流**：高度可配置的 Agent 系统，自由的修改任何 Prompt，构建属于你的工作流
-- 🤖**人机协同创作**：与 Agent 深度集成的辅助创作，发散思维、构建情节、协同编辑，而非抽卡式的一键生成
-- 💾**本地持久化**：所有项目数据均保存在本地，零云存储依赖，确保隐私数据安全
-- 🧠**语义化检索**：基于向量的 Agentic RAG，让 Agent 能够在百万字级别的项目中高效检索过往信息
-- ⚖️**成本优先**：多层上下文管理，智能压缩、动态截断、稳定缓存，尽可能降低使用成本
-- 🚀**快捷会话**：可配置共用隐藏指令，并通过新会话按钮自动发送
-- 🧭**消息导航**：在长 Agent 会话中快速定位此前发送的消息
-- 🗂️**笔记整理**：支持跨项目导入笔记，并在分类内拖动调整顺序
-- 📚**文档导入**：支持 TXT、Markdown、ZIP、EPUB 多文件排序导入，可合并到一卷或按文件分卷
-
-
-## 快速开始
-
-### 🖥桌面应用
-
-前往 [Release Page](https://github.com/fc235/OpenFic/releases) 下载桌面应用，在你的系统上原生运行，而无需额外步骤。
-
-## 贡献
-
-欢迎提交任何形式的贡献！如果你有想法、建议或代码改进，欢迎提交 Issue 或 Pull Request。
-
-- **报告 Bug**：如果你发现了任何问题，请在 Issues 中描述详细情况
-- **提出功能需求**：有更好的功能想法？在 Issues 中分享你的需求
-- **提交代码**：Fork 本仓库，修改代码后提交 Pull Request
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=syrizelink%2FOpenFic&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=syrizelink/OpenFic&type=date&theme=dark&legend=top-left&sealed_token=JHQpP1A05gPA9RleC2GLLnXJ5mg_nQHq_VosoaeQPU2yPGneRUJNEyxaEy--2atezknlCUb5HxLE0HB31gJAOr1ezJZHYW92VUSlWh0Ej0bkt4Q3AWVUHQ" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=syrizelink/OpenFic&type=date&legend=top-left&sealed_token=JHQpP1A05gPA9RleC2GLLnXJ5mg_nQHq_VosoaeQPU2yPGneRUJNEyxaEy--2atezknlCUb5HxLE0HB31gJAOr1ezJZHYW92VUSlWh0Ej0bkt4Q3AWVUHQ" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=syrizelink/OpenFic&type=date&legend=top-left&sealed_token=JHQpP1A05gPA9RleC2GLLnXJ5mg_nQHq_VosoaeQPU2yPGneRUJNEyxaEy--2atezknlCUb5HxLE0HB31gJAOr1ezJZHYW92VUSlWh0Ej0bkt4Q3AWVUHQ" />
- </picture>
-</a>
-
-## Repobeats
-
-![Repobeats](https://repobeats.axiom.co/api/embed/a3b67d74bb71044ef2385d65bc469090ee3e0fe6.svg "Repobeats analytics image")
-
-## 致谢
-
-- [SillyTavern](https://github.com/SillyTavern/SillyTavern) - 灵感来源
-- [oh-story-claudecode](https://github.com/worldwonderer/oh-story-claudecode) - 内置写作Skill参考
-
-## 社区
-
-[LINUX DO](https://linux.do/)
-
-交流群：[1105304435](https://qun.qq.com/universal-share/share?ac=1&authKey=XxKBo33K1IAy%2FejDsGPWOn51pCNk1Bu1%2F2dtldtWCWSdPGor4tZkaboxgrGkz2BS&busi_data=eyJncm91cENvZGUiOiIxMTA1MzA0NDM1IiwidG9rZW4iOiJCY1NuV2s5d1B2QmI2R0ZiMldMbDE4MVRPV1puMFJlWjZIRlZrRjk4WGUwY2wvdUlaWEFPZ1cvV0lLbWl6d3JwIiwidWluIjoiMjUzMjEyNDQwNCJ9&data=B2VDUuvIYSScsKPwMeFB6txn6fj8I18zG6EKsmsrZDwPpmNCoJ7r5NTLtmUUf58MK3Lw9evkkPg28EglHJNONA&svctype=4&tempid=h5_group_info)
-
-
-## 许可证
-
-[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+许可证仍为 [Apache License 2.0](./LICENSE)。本分支的问题请提交到 [fc235/OpenFic Issues](https://github.com/fc235/OpenFic/issues)；上游项目的问题请在上游仓库反馈。

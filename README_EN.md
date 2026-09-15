@@ -1,94 +1,29 @@
-# OpenFic
+# About this OpenFic fork
 
-![GitHub Repo stars](https://img.shields.io/github/stars/fc235/OpenFic)
-![License](https://img.shields.io/badge/License-Apache_2.0-red)
-![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
-![GitHub Release](https://img.shields.io/github/v/release/fc235/OpenFic?logo=githubactions&logoColor=white&color=yellow)
-![Release Downloads](https://img.shields.io/github/downloads/fc235/OpenFic/total?logo=github&logoColor=white&label=Release%20downloads&color=yellow)
-[![交流群](https://img.shields.io/badge/交流群-1105304435-12B7F5?logo=qq&logoColor=white)](https://qun.qq.com/universal-share/share?ac=1&authKey=XxKBo33K1IAy%2FejDsGPWOn51pCNk1Bu1%2F2dtldtWCWSdPGor4tZkaboxgrGkz2BS&busi_data=eyJncm91cENvZGUiOiIxMTA1MzA0NDM1IiwidG9rZW4iOiJCY1NuV2s5d1B2QmI2R0ZiMldMbDE4MVRPV1puMFJlWjZIRlZrRjk4WGUwY2wvdUlaWEFPZ1cvV0lLbWl6d3JwIiwidWluIjoiMjUzMjEyNDQwNCJ9&data=B2VDUuvIYSScsKPwMeFB6txn6fj8I18zG6EKsmsrZDwPpmNCoJ7r5NTLtmUUf58MK3Lw9evkkPg28EglHJNONA&svctype=4&tempid=h5_group_info)
+This is a personal fork of [syrizelink/OpenFic](https://github.com/syrizelink/OpenFic).
 
-[中文](./README.md) | English
+For the general feature list, setup instructions, and usage guide, see the [upstream README](https://github.com/syrizelink/OpenFic#readme). This page only lists changes made in this fork.
 
-**OpenFic** is an all-in-one, cross-platform, AI-native writing tool built for fiction authors. It helps you build world, design characters, and shape custom workflows, so the Agent fits your writing process instead of forcing you into its own.
+[Download this fork](https://github.com/fc235/OpenFic/releases) · [Upstream releases](https://github.com/syrizelink/OpenFic/releases) · [中文](./README.md)
 
-![Demo Screenshot](./demo.png)
+## Changes in this fork
 
-## When to Use OpenFic
+### Desktop app
 
-> [!Tip]  
-> *OpenFic is designed for Agent-assisted writing, not one-click novel generation. It is first and foremost a writing tool for fiction, and then an AI Agent system built around that workflow.*
+- Windows packages include a matching backend, and the app checks the desktop and backend versions at startup.
+- Closing the window can either close the frontend only or stop the local backend as well. The app can remember this choice.
+- When only the frontend is closed, background work and LAN access keep running. Opening the app again reconnects to the same backend.
+- LAN access can be enabled in Settings. The app shows addresses for available network interfaces and provides copy and QR-code controls.
+- When LAN access is changed, the backend waits for running Agent work to finish before restarting.
+- Releases, automatic updates, issue links, and Docker images point to `fc235/OpenFic`.
 
-#### It works well when you:
+### Editor and controls
 
-- are writing a mid-length or long-form novel and need to keep track of worldbuilding, characters, foreshadowing, and chapter details
-- want an Agent to help with brainstorming, continuity checks, and detail expansion
-- already have your own setting, tone, and plot direction, and want help turning ideas into actual prose
-- want to customize prompts, Agents, and workflows around your own writing process
-- care about local data storage, context management, and sustainable long-term collaboration
+- Notes and chapters share the same editor layout. Notes support find, replace, and keyboard shortcuts while remaining stored as Markdown.
+- Project cards no longer miss clicks during their hover animation, and projects can be opened with the keyboard.
+- In the conversation model menu, a single click changes the current model and a double-click sets the default model.
+- For the official DeepSeek API, the balance tooltip shows peak or off-peak pricing in Beijing time and picks a matching message at random.
 
-#### It is probably not a good fit when you:
+## Other notes
 
-- expect to type one prompt and get a complete novel automatically
-- mainly need short-form marketing copy, social posts, or generic one-off text generation
-- do not plan to maintain detailed project material or long-term writing context
-
-## Features
-
-- 🚀 **Ready out of the box**: download and install the desktop app with minimal setup
-- ✒️ **Built for writing**: an editor designed around fiction writing, with a comfortable long-form writing experience
-- 🤝 **Broad model support**: works with many providers, including any model compatible with the OpenAI API
-- 📱 **Responsive UI**: designed for desktop, mobile, and browser use without breaking the workflow
-- 🧩 **Custom workflows**: a highly configurable Agent system that lets you adapt prompts and workflows to your needs
-- 🤖 **Human-AI co-writing**: Agents help with brainstorming, plotting, and editing, instead of replacing the writing process with one-click generation
-- 💾 **Local persistence**: all project data stays on your machine, with no cloud storage dependency
-- 🧠 **Semantic retrieval**: Agentic RAG built on vector search, so Agents can retrieve information efficiently even in projects with millions of words
-- ⚖️ **Cost-aware context handling**: layered context management, smart compression, dynamic truncation, and stable caching to reduce usage cost
-- 🚀 **Quick sessions**: configure shared hidden instructions and send them automatically with the New Session button
-- 🧭 **Message navigation**: quickly locate messages you previously sent in long Agent sessions
-- 🗂️ **Note organization**: import notes across projects and reorder them within categories by dragging
-- 📚 **Document import**: sort and import TXT, Markdown, ZIP, and EPUB files, merging them into one volume or splitting by file
-
-## Quick Start
-
-### 🖥 Desktop App
-
-Download the desktop app from [the Release Page](https://github.com/fc235/OpenFic/releases) and run it natively on your system.
-
-## Contributing
-
-Contributions of any kind are welcome. If you have ideas, suggestions, or code improvements, feel free to open an Issue or submit a Pull Request.
-
-- **Report bugs**: open an Issue with as much detail as possible
-- **Suggest features**: share your ideas in Issues
-- **Submit code**: fork the repository, make your changes, and open a Pull Request
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed contribution guidelines.
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=syrizelink%2FOpenFic&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=syrizelink/OpenFic&type=date&theme=dark&legend=top-left&sealed_token=JHQpP1A05gPA9RleC2GLLnXJ5mg_nQHq_VosoaeQPU2yPGneRUJNEyxaEy--2atezknlCUb5HxLE0HB31gJAOr1ezJZHYW92VUSlWh0Ej0bkt4Q3AWVUHQ" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=syrizelink/OpenFic&type=date&legend=top-left&sealed_token=JHQpP1A05gPA9RleC2GLLnXJ5mg_nQHq_VosoaeQPU2yPGneRUJNEyxaEy--2atezknlCUb5HxLE0HB31gJAOr1ezJZHYW92VUSlWh0Ej0bkt4Q3AWVUHQ" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=syrizelink/OpenFic&type=date&legend=top-left&sealed_token=JHQpP1A05gPA9RleC2GLLnXJ5mg_nQHq_VosoaeQPU2yPGneRUJNEyxaEy--2atezknlCUb5HxLE0HB31gJAOr1ezJZHYW92VUSlWh0Ej0bkt4Q3AWVUHQ" />
- </picture>
-</a>
-
-## Repobeats
-
-![Repobeats](https://repobeats.axiom.co/api/embed/a3b67d74bb71044ef2385d65bc469090ee3e0fe6.svg "Repobeats analytics image")
-
-## Acknowledgements
-
-- [SillyTavern](https://github.com/SillyTavern/SillyTavern) - inspiration
-- [oh-story-claudecode](https://github.com/worldwonderer/oh-story-claudecode) - reference for the built-in writing Skill
-
-## Community
-
-[LINUX DO](https://linux.do/)
-
-交流群：[1105304435](https://qun.qq.com/universal-share/share?ac=1&authKey=XxKBo33K1IAy%2FejDsGPWOn51pCNk1Bu1%2F2dtldtWCWSdPGor4tZkaboxgrGkz2BS&busi_data=eyJncm91cENvZGUiOiIxMTA1MzA0NDM1IiwidG9rZW4iOiJCY1NuV2s5d1B2QmI2R0ZiMldMbDE4MVRPV1puMFJlWjZIRlZrRjk4WGUwY2wvdUlaWEFPZ1cvV0lLbWl6d3JwIiwidWluIjoiMjUzMjEyNDQwNCJ9&data=B2VDUuvIYSScsKPwMeFB6txn6fj8I18zG6EKsmsrZDwPpmNCoJ7r5NTLtmUUf58MK3Lw9evkkPg28EglHJNONA&svctype=4&tempid=h5_group_info)
-
-## License
-
-[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+The project remains licensed under the [Apache License 2.0](./LICENSE). Report fork-specific problems at [fc235/OpenFic Issues](https://github.com/fc235/OpenFic/issues). Please report upstream problems to the upstream repository.

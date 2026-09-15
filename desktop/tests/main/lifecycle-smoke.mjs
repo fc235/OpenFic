@@ -101,6 +101,33 @@ try {
   assert.equal(reopenedUrl, baseUrl);
   console.log("PASS reopen reuses the same backend URL and remembered close preference");
 
+  const projectForm = new FormData();
+  projectForm.append("title", "Frontend restart navigation probe");
+  const createdProject = await (await fetch(`${baseUrl}/api/v1/projects`, {
+    method: "POST",
+    body: projectForm,
+  })).json();
+  const projectId = createdProject.id;
+  await waitFor(() => host(`document.querySelector('a[href="/projects/${projectId}"]') !== null`), "project card after frontend restart");
+  const clickTarget = await window.evaluate(async id => {
+    const webview = document.querySelector("webview");
+    const shellRect = webview?.getBoundingClientRect();
+    const cardRect = await webview?.executeJavaScript(`(() => {
+      const link = document.querySelector('a[href="/projects/${id}"]');
+      if (!link) return null;
+      const rect = link.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height,
+        hitHref: hit?.closest('a')?.getAttribute('href') ?? null };
+    })()`);
+    if (!shellRect || !cardRect) return null;
+    return { x: shellRect.left + cardRect.left + cardRect.width / 2, y: shellRect.top + cardRect.top + cardRect.height / 2, hitHref: cardRect.hitHref };
+  }, projectId);
+  assert.equal(clickTarget?.hitHref, `/projects/${projectId}`);
+  await window.mouse.click(clickTarget.x, clickTarget.y);
+  await waitFor(() => host(`location.pathname === '/projects/${projectId}'`), "project navigation after frontend restart");
+  console.log("PASS project card accepts a real click after frontend-only restart");
+
   await electron.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].close());
   await waitFor(() => electron.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows().length === 0), "remembered frontend closes directly");
   assert.equal((await fetch(`${baseUrl}/api/v1/health`)).status, 200);

@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import React from "react";
+      import { createRoot } from "react-dom/client";
+      import { Theme } from "@radix-ui/themes";
+      import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+      import { MemoryRouter, Route, Routes } from "react-router";
+      import { ProjectCard } from "../src/features/projects/components/project-card";
+      import { SettingsDialog } from "../src/features/settings/components/settings-dialog";
+      import "../src/i18n";
+      import "@radix-ui/themes/styles.css";
+      import "../src/styles/index.css";
+      const h = React.createElement;
+      const project = {
+        id: "probe",
+        title: "遮罩回归项目",
+        description: null,
+        wordCount: 1,
+        chapterCount: 1,
+        coverUrl: null,
+        createdAt: "2026-09-15T00:00:00Z",
+        updatedAt: "2026-09-15T00:00:00Z",
+      };
+      function App() {
+        const [open, setOpen] = React.useState(false);
+        return h(
+          React.Fragment,
+          {},
+          h(
+            "button",
+            {
+              type: "button",
+              onClick: () => setOpen(true),
+              "aria-label": "设置",
+              style: { position: "relative", zIndex: 2 },
+            },
+            "设置",
+          ),
+          h(
+            Routes,
+            {},
+            h(Route, {
+              path: "/",
+              element: h(ProjectCard, { project, onEdit: () => {}, onDelete: () => {} }),
+            }),
+            h(Route, { path: "/projects/probe", element: h("p", {}, "项目已打开") }),
+          ),
+          h(SettingsDialog, {
+            open,
+            onOpenChange: setOpen,
+            themeMode: "light",
+            onThemeModeChange: () => {},
+            onThemeSettingsChange: () => {},
+            onThemePreviewChange: () => {},
+          }),
+        );
+      }
+      createRoot(document.getElementById("root")).render(
+        h(
+          QueryClientProvider,
+          { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+          h(Theme, {}, h(MemoryRouter, { initialEntries: ["/"] }, h(App))),
+        ),
+      );
+    </script>
+  </body>
+</html>

@@ -42,6 +42,10 @@ export function SettingsDialog({
     return () => document.removeEventListener("pointerdown", handlePointerDown, true);
   }, []);
 
+  // Radix can leave a closed overlay mounted with pointer events enabled.
+  // Unmounting the dialog removes that layer before the page becomes interactive again.
+  if (!open) return null;
+
   return (
     <Dialog.Root
       open={open}

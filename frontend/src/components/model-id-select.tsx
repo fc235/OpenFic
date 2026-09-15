@@ -67,6 +67,7 @@ interface ModelIdSelectProps {
   triggerPrefix?: ReactNode;
   hideTriggerChevron?: boolean;
   triggerClassName?: string;
+  contentClassName?: string;
 }
 
 export function getModelValue(model: ModelIdSelectOption): string {
@@ -173,6 +174,7 @@ export function ModelIdSelect({
   defaultModelId,
   onSetDefaultModel,
   isSavingDefaultModel = false,
+  contentClassName,
 }: ModelIdSelectProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -419,6 +421,7 @@ export function ModelIdSelect({
       <Popover.Trigger>{trigger}</Popover.Trigger>
 
       <Popover.Content
+        className={contentClassName}
         style={{
           width: popoverWidth,
           minWidth: popoverWidth,
@@ -451,6 +454,8 @@ export function ModelIdSelect({
                   <IconButton
                     size="1"
                     variant="soft"
+                    color="gray"
+                    highContrast
                     onClick={onRefresh}
                     disabled={refreshDisabled || !onRefresh || isRefreshing}
                     aria-label={t("models.fetchRemoteModels")}

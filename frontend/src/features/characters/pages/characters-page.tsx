@@ -482,6 +482,8 @@ export function CharactersPage() {
                 <Tooltip content={t("characters.listTitle")}>
                   <IconButton
                     variant="ghost"
+                    color="gray"
+                    highContrast
                     size="2"
                     aria-label={t("characters.listTitle")}
                     onClick={() => setListOpen(!isListOpen)}
@@ -494,6 +496,8 @@ export function CharactersPage() {
               <Tooltip content={t("assistant.mobileTitle")}>
                 <IconButton
                   variant="ghost"
+                  color="gray"
+                  highContrast
                   size="2"
                   aria-label={t("assistant.mobileTitle")}
                   onClick={openAssistantSidebar}

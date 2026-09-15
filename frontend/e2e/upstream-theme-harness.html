@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import React from "react";
+      import { createRoot } from "react-dom/client";
+      import { MemoryRouter } from "react-router";
+      import { Theme } from "@radix-ui/themes";
+      import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+      import { SettingsContent } from "../src/features/settings/components/settings-content";
+      import { applyThemePalette, resolveThemePalette, observeThemeRoots } from "../src/lib/theme";
+      import "../src/i18n";
+      import "../src/styles/index.css";
+      const h = React.createElement;
+      window.openficDesktopHost = {
+        getDesktopPreferences: async () => ({
+          closeBehavior: "ask",
+          lanEnabled: false,
+          backendRunning: true,
+          localBackend: true,
+          lanPending: false,
+          addresses: [],
+        }),
+        saveDesktopPreferences: async () => {
+          throw Error("Not needed in theme regression");
+        },
+        publishAppearance: () => {},
+        publishLanguage: () => {},
+        publishSocketDiagnostic: () => {},
+      };
+      function App() {
+        const [appearance, setAppearance] = React.useState("light");
+        React.useEffect(() => observeThemeRoots(), []);
+        const apply = (settings) => {
+          const mode = settings.theme === "dark" ? "dark" : "light";
+          setAppearance(mode);
+          const preset = mode === "dark" ? settings.darkThemePreset : settings.lightThemePreset;
+          applyThemePalette(resolveThemePalette(preset, settings.themeConfig, mode), mode, preset);
+        };
+        return h(
+          Theme,
+          { appearance },
+          h(
+            "div",
+            { style: { height: "90vh", display: "flex" } },
+            h(SettingsContent, {
+              themeMode: appearance,
+              onThemeModeChange: setAppearance,
+              onThemeSettingsChange: apply,
+              onThemePreviewChange: apply,
+              onClose: () => {},
+              route: { category: "personalization" },
+            }),
+          ),
+        );
+      }
+      createRoot(document.getElementById("root")).render(
+        h(
+          QueryClientProvider,
+          { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+          h(MemoryRouter, {}, h(App)),
+        ),
+      );
+    </script>
+  </body>
+</html>

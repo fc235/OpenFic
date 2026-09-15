@@ -113,14 +113,16 @@ try {
     const state = await host("window.openficDesktopHost?.getDesktopPreferences?.()");
     return state?.addresses.length && !state.lanPending ? state : null;
   }, "LAN restart");
-  assert.equal(new URL(lan.addresses[0].url).port, new URL(baseUrl).port);
-  const response = await fetch(lan.addresses[0].url, {signal:AbortSignal.timeout(5000)});
+  // Prefer a private LAN address over benchmark adapters exposed by VPN clients.
+  const lanUrl = (lan.addresses.find(({url}) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(new URL(url).hostname)) ?? lan.addresses[0]).url;
+  assert.equal(new URL(lanUrl).port, new URL(baseUrl).port);
+  const response = await fetch(lanUrl, {signal:AbortSignal.timeout(5000)});
   assert.equal(response.status, 200);
   assert.match(await response.text(), /<html/i);
   await waitFor(() => host('document.querySelector(".projects-page") !== null'), "full desktop frontend");
   await window.screenshot({path:path.join(testRoot,"desktop.png")});
   await host("window.openficDesktopHost.saveDesktopPreferences({closeBehavior:'ask'})");
-  await host("window.openficDesktopHost.publishAppearance({appearance:'dark'})");
+  await host("window.openficDesktopHost.publishAppearance({appearance:'dark',fontFamily:'Times New Roman',themeVariables:{'--accent-9':'#007acc','--accent-10':'#006bb3','--accent-contrast':'#ffffff','--accent-a3':'rgba(0,122,204,0.15)','--accent-8':'#007acc'}})");
   await waitFor(() => window.locator('.desktop-shell.dark').count(), "dark shell appearance");
   await electron.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].close());
   await closeDialog().waitFor();
@@ -128,6 +130,16 @@ try {
     await window.keyboard.press("Tab");
     assert.equal(await closeDialog().evaluate(element => element.contains(document.activeElement)),true);
   }
+  const customStyle = await closeDialog().evaluate(element => ({
+    font:getComputedStyle(element).fontFamily,
+    radius:getComputedStyle(element).borderRadius,
+    primary:getComputedStyle(element.querySelector('.desktop-close-confirm')).backgroundColor,
+    selected:getComputedStyle(element.querySelector('[data-selected="true"]')).borderColor,
+  }));
+  assert.match(customStyle.font,/Times New Roman/);
+  assert.notEqual(customStyle.radius,"0px");
+  assert.equal(customStyle.primary,"rgb(0, 122, 204)");
+  assert.equal(customStyle.selected,"rgb(0, 122, 204)");
   await window.screenshot({path:path.join(testRoot,"close-dialog-dark.png")});
   await window.keyboard.press("Escape");
   await closeDialog().waitFor({state:"hidden"});
@@ -135,7 +147,7 @@ try {
   const mobileBrowser = await chromium.launch({channel:"chrome"});
   try {
     const mobile = await mobileBrowser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
-    await mobile.goto(lan.addresses[0].url);
+    await mobile.goto(lanUrl);
     await mobile.locator(".projects-page").waitFor({timeout:30000});
     await mobile.screenshot({path:path.join(testRoot,"mobile.png")});
   } finally { await mobileBrowser.close(); }

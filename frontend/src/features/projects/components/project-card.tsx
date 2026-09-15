@@ -36,7 +36,7 @@ export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      whileHover={{ backgroundColor: "var(--gray-a3)" }}
+      whileHover={{ backgroundColor: "var(--theme-list-hover-background)" }}
       transition={{ duration: 0.2 }}
     >
       <Link
@@ -137,6 +137,8 @@ export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
                 aria-label={t("common.edit")}
                 size="1"
                 variant="ghost"
+                color="gray"
+                highContrast
                 onClick={(e) => {
                   e.stopPropagation();
                   onEdit(project);

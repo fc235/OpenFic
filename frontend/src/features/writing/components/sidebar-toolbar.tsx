@@ -196,7 +196,7 @@ export function SidebarToolbar({
                 border: "1px solid transparent",
                 borderColor: contentSearchExpanded ? "var(--gray-a7)" : "transparent",
                 borderRadius: "max(var(--radius-2), var(--radius-full))",
-                background: contentSearchExpanded ? "var(--color-surface)" : "transparent",
+                background: contentSearchExpanded ? "var(--color-background)" : "transparent",
                 flex: contentSearchExpanded ? 1 : undefined,
                 minWidth: 0,
                 position: "relative",
@@ -221,6 +221,8 @@ export function SidebarToolbar({
               </ChapterSearchPopover>
               <IconButton
                 variant="ghost"
+                color="gray"
+                highContrast
                 size="2"
                 onClick={contentSearchExpanded ? undefined : handleContentSearchToggle}
                 style={{
@@ -272,6 +274,8 @@ export function SidebarToolbar({
                 <Tooltip content={t("writing.dragModeOn")}>
                   <IconButton
                     variant="ghost"
+                    color="gray"
+                    highContrast
                     size="2"
                     onClick={handleEnterDragMode}
                   >
@@ -300,8 +304,8 @@ export function SidebarToolbar({
                 <Tooltip content={t("writing.cancelOrder")}>
                   <IconButton
                     variant="ghost"
-                    size="2"
                     color="gray"
+                    size="2"
                     onClick={handleCancelDragMode}
                     disabled={isSavingOrder}
                   >
@@ -325,6 +329,8 @@ export function SidebarToolbar({
                 <Tooltip content={t("writing.newChapter")}>
                   <IconButton
                     variant="ghost"
+                    color="gray"
+                    highContrast
                     size="2"
                     onClick={handleCreate}
                   >
@@ -334,6 +340,8 @@ export function SidebarToolbar({
                 <Tooltip content={t("writing.newVolume")}>
                   <IconButton
                     variant="ghost"
+                    color="gray"
+                    highContrast
                     size="2"
                     onClick={handleCreateVolume}
                   >
@@ -353,6 +361,8 @@ export function SidebarToolbar({
                   <Tooltip content={t("summary.openPanel")}>
                     <IconButton
                       variant="ghost"
+                      color="gray"
+                      highContrast
                       size="2"
                       aria-label={t("summary.openPanel")}
                       onClick={onOpenSummary}
@@ -364,6 +374,8 @@ export function SidebarToolbar({
                 <Tooltip content={t("writing.chapterExport.open")}>
                   <IconButton
                     variant="ghost"
+                    color="gray"
+                    highContrast
                     size="2"
                     onClick={onExport}
                   >

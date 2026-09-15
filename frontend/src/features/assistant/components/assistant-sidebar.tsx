@@ -1350,6 +1350,8 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
           >
             <IconButton
               variant="ghost"
+              color="gray"
+              highContrast
               size="2"
               onClick={onClose}
               aria-label={t("common.close")}
@@ -1380,6 +1382,8 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
               >
                 <IconButton
                   variant="ghost"
+                  color="gray"
+                  highContrast
                   size="1"
                   onClick={handleHeaderBack}
                   aria-label={headerBackLabel}

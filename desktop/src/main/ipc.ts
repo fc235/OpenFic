@@ -23,6 +23,7 @@ import {
   type ReportErrorPayload,
   type RestoreDataRequest,
   type SaveConfigRequest,
+  type SaveInstanceAppearanceRequest,
   type SaveZoomFactorRequest,
   type StartLocalBackendRequest,
   type SwitchInstanceRequest,
@@ -50,7 +51,7 @@ import { appendLog, exportLogs } from "./logging.js";
 import { captureException } from "./telemetry.js";
 import { notifySessionCompleted } from "./session-notifications.js";
 import type { BackendProcessHandle } from "./process.js";
-import type { DesktopConfig, DesktopInstance } from "../shared/config.js";
+import { isDesktopInstanceAppearance, type DesktopConfig, type DesktopInstance } from "../shared/config.js";
 import type { DesktopPreferencesState } from "../shared/desktop-preferences.js";
 
 const PROJECT_HOME_URL = "https://github.com/fc235/OpenFic";
@@ -68,6 +69,12 @@ interface LocalInstanceDeletionPaths {
 function normalizeZoomFactor(zoomFactor: number): number {
   const clampedZoomFactor = Math.min(MAX_ZOOM_FACTOR, Math.max(MIN_ZOOM_FACTOR, zoomFactor));
   return Math.round(clampedZoomFactor * 10) / 10;
+}
+
+function isSaveInstanceAppearanceRequest(value: unknown): value is SaveInstanceAppearanceRequest {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as SaveInstanceAppearanceRequest;
+  return typeof candidate.instanceId === "string" && isDesktopInstanceAppearance(candidate);
 }
 
 function getLocalInstanceDeletionPaths(instance: DesktopInstance): LocalInstanceDeletionPaths {
@@ -280,6 +287,32 @@ export function registerIpc(context: IpcContext): void {
     await writeDesktopConfig(nextConfig);
     context.onConfigSaved(nextConfig);
   }));
+
+  ipcMain.handle(
+    IpcChannels.saveInstanceAppearance,
+    (_event, request: SaveInstanceAppearanceRequest) =>
+      enqueueConfigMutation(async () => {
+        if (!isSaveInstanceAppearanceRequest(request)) throw new Error("无效的实例外观配置");
+        const config = await readDesktopConfig();
+        if (!config) return;
+        if (!config.instances.some((instance) => instance.id === request.instanceId)) return;
+        const nextConfig: DesktopConfig = {
+          ...config,
+          instances: config.instances.map((instance) =>
+            instance.id === request.instanceId
+              ? {
+                  ...instance,
+                  ...(request.appearance === undefined ? {} : { appearance: request.appearance }),
+                  ...(request.fontFamily === undefined ? {} : { fontFamily: request.fontFamily }),
+                  ...(request.codeFontFamily === undefined ? {} : { codeFontFamily: request.codeFontFamily }),
+                  ...(request.themeVariables === undefined ? {} : { themeVariables: request.themeVariables }),
+                }
+              : instance,
+          ),
+        };
+        await writeDesktopConfig(nextConfig);
+      }),
+  );
 
   ipcMain.handle(IpcChannels.getZoomFactor, async () => {
     await pendingConfigMutation;

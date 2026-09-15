@@ -33,6 +33,18 @@ const SummaryPanel = lazy(() =>
   import("../components/summary-panel").then((module) => ({ default: module.SummaryPanel })),
 );
 
+function blurMobileEditorElement(): void {
+  const activeElement = document.activeElement;
+  if (!(activeElement instanceof HTMLElement)) return;
+
+  const isTextInput =
+    activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
+
+  if (!isTextInput && !activeElement.isContentEditable) return;
+
+  activeElement.blur();
+}
+
 export function WritingPage() {
   const { t } = useTranslation();
   const { projectId } = useParams<{ projectId: string }>();
@@ -80,6 +92,7 @@ export function WritingPage() {
     isOpen: isSidebarOpen,
     onOpen: () => setIsSidebarOpen(true),
     onClose: () => setIsSidebarOpen(false),
+    onSwipe: blurMobileEditorElement,
   });
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [hasOpenedSummary, setHasOpenedSummary] = useState(false);
@@ -233,16 +246,8 @@ export function WritingPage() {
     if (!isMobile || !currentChapterId) return;
 
     const frameId = window.requestAnimationFrame(() => {
-      const activeElement = document.activeElement;
-      if (!(activeElement instanceof HTMLElement)) return;
-
-      const isTextInput =
-        activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
-
       // Mobile browsers may restore editor/title focus after chapter navigation.
-      if (!isTextInput && !activeElement.isContentEditable) return;
-
-      activeElement.blur();
+      blurMobileEditorElement();
     });
 
     return () => window.cancelAnimationFrame(frameId);
@@ -485,6 +490,8 @@ export function WritingPage() {
                   <Tooltip content={t("writing.chapters")}>
                     <IconButton
                       variant="ghost"
+                      color="gray"
+                      highContrast
                       size="2"
                       aria-label={t("writing.chapters")}
                       onClick={() => setIsSidebarOpen((open) => !open)}
@@ -502,6 +509,8 @@ export function WritingPage() {
                     <Tooltip content={t("editor.addSelectedToConversation")}>
                       <IconButton
                         variant="ghost"
+                        color="gray"
+                        highContrast
                         size="2"
                         aria-label={t("editor.addSelectedToConversation")}
                         onClick={() => addSelectionToConversationRef.current?.()}
@@ -513,6 +522,8 @@ export function WritingPage() {
                   <Tooltip content={t("assistant.mobileTitle")}>
                     <IconButton
                       variant="ghost"
+                      color="gray"
+                      highContrast
                       size="2"
                       aria-label={t("assistant.mobileTitle")}
                       onClick={openAssistantSidebar}

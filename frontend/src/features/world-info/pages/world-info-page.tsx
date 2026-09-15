@@ -832,6 +832,8 @@ export function WorldInfoPage() {
                     <Tooltip content={t("worldInfo.entries")}>
                       <IconButton
                         variant="ghost"
+                        color="gray"
+                        highContrast
                         size="2"
                         aria-label={t("worldInfo.entries")}
                         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -844,6 +846,8 @@ export function WorldInfoPage() {
                   <Tooltip content={t("assistant.mobileTitle")}>
                     <IconButton
                       variant="ghost"
+                      color="gray"
+                      highContrast
                       size="2"
                       aria-label={t("assistant.mobileTitle")}
                       onClick={openAssistantSidebar}

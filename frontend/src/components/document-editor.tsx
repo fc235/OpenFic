@@ -115,7 +115,10 @@ export function DocumentEditor({
         py="3"
         justify="between"
         align="center"
-        style={{ borderTop: "1px solid var(--gray-a4)", background: "var(--gray-a2)" }}
+        style={{
+          borderTop: "1px solid var(--gray-a4)",
+          background: "var(--theme-editor-bar-background)",
+        }}
       >
         <Text
           size="1"

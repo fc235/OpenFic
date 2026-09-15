@@ -133,6 +133,8 @@ export function ProjectListItem({ project, onEdit, onDelete }: ProjectListItemPr
               aria-label={t("common.edit")}
               size="2"
               variant="ghost"
+              color="gray"
+              highContrast
               onClick={(e) => {
                 e.stopPropagation();
                 onEdit(project);

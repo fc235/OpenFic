@@ -23,6 +23,7 @@ import {
   useImperativeHandle,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { v4 as uuidv4 } from "uuid";
 
 import { CircularProgress, ConfirmDialog, Spinner, toast, getModelValue } from "@/components";
 import { AgentBrandIcon } from "@/components/agent-brand-icon";
@@ -54,8 +55,6 @@ import type { TaskListItem } from "@/lib/task.types";
 import { useLlmModelOptions } from "@/lib/use-llm-model-options";
 
 import "./assistant-sidebar.css";
-import { DeepSeekBalance } from "./deepseek-balance";
-
 import { useSubagentSession } from "../hooks/use-subagent-session";
 import { useTasks, useUpdateTask } from "../hooks/use-tasks";
 import {
@@ -83,6 +82,7 @@ import { ActiveSubagentList } from "./agent/active-subagent-list";
 import { AgentSessionChangesDialog } from "./agent/agent-changes";
 import { AgentSpecialPanels } from "./agent/agent-special-panels";
 import { getAgentSpecialPanels } from "./agent/agent-special-panels-state";
+import { DeepSeekBalance } from "./deepseek-balance";
 import { AllTasksPage } from "./tasks/all-tasks-page";
 import { RecentTasksCard } from "./tasks/recent-tasks-card";
 
@@ -726,11 +726,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
         tokenOutput: sessionTotalUsage.tokenOutput,
         tokenCache: sessionTotalUsage.tokenCache,
       }),
-      [
-        sessionTotalUsage.tokenCache,
-        sessionTotalUsage.tokenInput,
-        sessionTotalUsage.tokenOutput,
-      ],
+      [sessionTotalUsage.tokenCache, sessionTotalUsage.tokenInput, sessionTotalUsage.tokenOutput],
     );
 
     const contextUsagePercent = Math.min(
@@ -1156,24 +1152,6 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
       requestSendWithSummaryCheck(performSend);
     }, [inputValue, pendingAttachments.length, performSend, requestSendWithSummaryCheck]);
 
-    const quickStartPrompt = settings?.quickStartPrompt ?? "";
-    const canShowQuickStart =
-      !hasActiveTask &&
-      !isViewingSubagent &&
-      settings?.quickStartEnabled === true &&
-      Boolean(quickStartPrompt.trim());
-
-    const performQuickStart = useCallback(() => {
-      if (!quickStartPrompt.trim() || agentSidebar.sessionId || agentSidebar.isRunning) return;
-      const title = quickStartPrompt.trim();
-      setCurrentTaskTitle(title.length > 50 ? `${title.slice(0, 50)}...` : title);
-      void agentSidebar.startSession(quickStartPrompt);
-    }, [agentSidebar, quickStartPrompt]);
-
-    const handleQuickStart = useCallback(() => {
-      requestSendWithSummaryCheck(performQuickStart);
-    }, [performQuickStart, requestSendWithSummaryCheck]);
-
     const handleConfirmSummaryWarning = useCallback(() => {
       setSummaryWarningOpen(false);
       const action = pendingSendActionRef.current;
@@ -1577,7 +1555,10 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
                   </Flex>
                 </Tooltip>
               </Flex>
-              <DeepSeekBalance modelId={effectiveModelId} isRunning={agentSidebar.isRunning || subagentSession.isRunning} />
+              <DeepSeekBalance
+                modelId={effectiveModelId}
+                isRunning={agentSidebar.isRunning || subagentSession.isRunning}
+              />
               <Flex
                 align="center"
                 className="ai-sidebar-context-wrap"
@@ -1683,8 +1664,6 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
                   onToggleFavorite={handleToggleFavorite}
                   onRenameTask={handleRenameTask}
                   onViewAll={openAllTasks}
-                  onQuickStart={canShowQuickStart ? handleQuickStart : undefined}
-                  quickStartDisabled={agentSidebar.isRunning || isLoadingTask}
                 />
               ) : (
                 agentSidebar.MessagesComponent
@@ -1736,7 +1715,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
                 setPendingAttachments((current) => [
                   ...current,
                   ...files.map((file) => ({
-                    id: crypto.randomUUID(),
+                    id: uuidv4(),
                     file,
                     previewUrl: URL.createObjectURL(file),
                   })),

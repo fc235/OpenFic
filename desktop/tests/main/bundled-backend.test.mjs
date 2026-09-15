@@ -9,6 +9,17 @@ import {
 } from "../../dist/main/runtime/bundled-backend.js";
 import { createOpenFicInstallCommand } from "../../dist/main/runtime/openfic-commands.js";
 
+test("beta desktop selects the PEP 440 wheel without accepting the stable wheel", () => {
+  assert.equal(selectBundledOpenFicWheel([
+    "openfic-1.0.4-py3-none-any.whl", "openfic-1.0.4b0-py3-none-any.whl",
+  ], "1.0.4-beta"), "openfic-1.0.4b0-py3-none-any.whl");
+  assert.equal(selectBundledOpenFicWheel(["openfic-1.0.4b0-py3-none-any.whl"], "1.0.4"), null);
+});
+
+test("beta PyPI fallback uses a Python-compatible version", () => {
+  assert.equal(createOpenFicInstallCommand("python", "1.0.4-beta").args.at(-1), "openfic==1.0.4b0");
+});
+
 test("selects the wheel whose normalized version exactly matches", () => {
   assert.equal(
     selectBundledOpenFicWheel(

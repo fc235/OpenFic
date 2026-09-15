@@ -727,21 +727,22 @@ export function EditorToolbar({
                     disabled={isAgentLocked}
                     onClick={handleParagraphBreak}
                   />
-                  {onOpenFind && (
-                    <ToolbarButton
-                      icon={<Search size={18} />}
-                      label={t("editor.quickFind")}
-                      onClick={onOpenFind}
-                    />
-                  )}
-                  {onOpenReplace && (
-                    <ToolbarButton
-                      icon={<FileSearch size={18} />}
-                      label={t("editor.quickReplace")}
-                      onClick={onOpenReplace}
-                    />
-                  )}
                 </>
+              )}
+
+              {onOpenFind && (
+                <ToolbarButton
+                  icon={<Search size={18} />}
+                  label={t("editor.quickFind")}
+                  onClick={onOpenFind}
+                />
+              )}
+              {onOpenReplace && (
+                <ToolbarButton
+                  icon={<FileSearch size={18} />}
+                  label={t("editor.quickReplace")}
+                  onClick={onOpenReplace}
+                />
               )}
 
               {showMarkdownTools && (

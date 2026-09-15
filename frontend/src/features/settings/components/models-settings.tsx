@@ -81,31 +81,19 @@ export function ModelsSettings({
   }, [activeTab]);
 
   // 获取所有模型
-  const {
-    data: models,
-    isLoading: isModelsLoading,
-    isFetching: isModelsFetching,
-  } = useQuery({
+  const { data: models, isLoading: isModelsLoading } = useQuery({
     queryKey: ["models"],
     queryFn: () => fetchModels(),
   });
 
   // 获取所有提供商（用于显示提供商名称）
-  const {
-    data: providers,
-    isLoading: isProvidersLoading,
-    isFetching: isProvidersFetching,
-  } = useQuery({
+  const { data: providers, isLoading: isProvidersLoading } = useQuery({
     queryKey: ["model-providers"],
     queryFn: fetchProviders,
   });
 
   // 获取设置
-  const {
-    data: settings,
-    isLoading: isSettingsLoading,
-    isFetching: isSettingsFetching,
-  } = useQuery({
+  const { data: settings, isLoading: isSettingsLoading } = useQuery({
     queryKey: ["settings"],
     queryFn: fetchSettings,
   });
@@ -113,9 +101,13 @@ export function ModelsSettings({
   // 更新设置
   const updateSettingsMutation = useMutation({
     mutationFn: updateSettings,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["settings"] });
+    onSuccess: (updatedSettings) => {
+      queryClient.setQueryData(["settings"], updatedSettings);
+      void queryClient.invalidateQueries({ queryKey: ["settings"] });
       toast.success(t("common.saveSuccess"));
+    },
+    onError: () => {
+      toast.error(t("common.saveFailed"));
     },
   });
 
@@ -149,11 +141,7 @@ export function ModelsSettings({
     );
   }, [llmModels, providers]);
 
-  const {
-    data: llmCatalogMetadata,
-    isLoading: isLlmCatalogMetadataLoading,
-    isFetching: isLlmCatalogMetadataFetching,
-  } = useQuery({
+  const { data: llmCatalogMetadata, isLoading: isLlmCatalogMetadataLoading } = useQuery({
     queryKey: ["model-provider-catalog", "saved-llm-model-metadata", llmCatalogProviderTypes],
     queryFn: async () => {
       const responses = await Promise.all(
@@ -369,14 +357,10 @@ export function ModelsSettings({
   const hasProviders = providers ? hasSelectableModelProvider(providers) : false;
   const isContentLoading =
     isModelsLoading ||
-    isModelsFetching ||
     isProvidersLoading ||
-    isProvidersFetching ||
     isSettingsLoading ||
-    isSettingsFetching ||
     isAgentSettingsLockLoading ||
-    (llmCatalogProviderTypes.length > 0 &&
-      (isLlmCatalogMetadataLoading || isLlmCatalogMetadataFetching));
+    (llmCatalogProviderTypes.length > 0 && isLlmCatalogMetadataLoading);
 
   const handleActiveTabChange = useCallback(
     (value: string) => {
@@ -444,7 +428,7 @@ export function ModelsSettings({
               }
               editable={false}
               allowCustomValue={false}
-              disabled={isAgentSettingsLocked || !hasLlmModels}
+              disabled={isAgentSettingsLocked || updateSettingsMutation.isPending || !hasLlmModels}
               emptyOptionLabel={`（${t("models.selectModelPlaceholder")}）`}
             />
           </Flex>
@@ -476,7 +460,7 @@ export function ModelsSettings({
               }
               editable={false}
               allowCustomValue={false}
-              disabled={isAgentSettingsLocked || !hasLlmModels}
+              disabled={isAgentSettingsLocked || updateSettingsMutation.isPending || !hasLlmModels}
               emptyOptionLabel={`（${t("models.selectModelPlaceholder")}）`}
             />
           </Flex>
@@ -614,7 +598,11 @@ export function ModelsSettings({
                     </Flex>
 
                     {/* 操作按钮 */}
-                    <Flex gap="2">
+                    <Flex
+                      gap="2"
+                      align="center"
+                      wrap="wrap"
+                    >
                       {model.taskType === "llm" ? (
                         <Tooltip content={t("models.validateModel")}>
                           <IconButton

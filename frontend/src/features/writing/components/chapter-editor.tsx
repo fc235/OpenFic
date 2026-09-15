@@ -1,16 +1,16 @@
-import { Box, Flex, Text } from "@radix-ui/themes";
+import { Flex, Text } from "@radix-ui/themes";
 import { useQuery } from "@tanstack/react-query";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor } from "@tiptap/react";
 import { AtSign } from "lucide-react";
-import { AnimatePresence } from "motion/react";
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
 import { useTranslation } from "react-i18next";
 import wordsCountModule from "words-count";
 
 import { toast } from "@/components";
-import { TitleInput, EditorToolbar, Spinner } from "@/components";
+import { Spinner } from "@/components";
 import { ContextMenu } from "@/components";
+import { DocumentEditor } from "@/components/document-editor";
+import { useEditorSearch } from "@/components/use-editor-search";
 import {
   buildChapterMentionTag,
   buildLineRangeMentionTag,
@@ -45,7 +45,6 @@ import {
   isRemoteWritingEntityNewer,
 } from "../lib/writing-working-copy";
 import { useTabsStore } from "../store/use-tabs-store";
-import { FindReplacePanel } from "./find-replace-panel";
 
 const MANUAL_SAVE_EVENT = "openfic:chapter-editor-manual-save";
 
@@ -138,10 +137,8 @@ function ChapterEditorContent({
     isChapterEditorDraftDirty(lastSavedDraftRef.current, initialDraft),
   );
   const [isSaving, setIsSaving] = useState(false);
-  const [findReplaceMode, setFindReplaceMode] = useState<"closed" | "find" | "replace">("closed");
   const [wordCount, setWordCount] = useState(() => wordsCount(initialDraft.content));
   const [lineNumberDigits, setLineNumberDigits] = useState(1);
-  const saveStatus = isSaving ? "saving" : hasChanges ? "unsaved" : "saved";
   const latestDraftRef = useRef(initialDraft);
   const latestDraftUpdatedAtRef = useRef(initialDraftUpdatedAt);
   const hasChangesRef = useRef(isChapterEditorDraftDirty(lastSavedDraftRef.current, initialDraft));
@@ -171,21 +168,8 @@ function ChapterEditorContent({
     [t],
   );
 
-  const openFind = useCallback(() => {
-    if (isAgentLocked) {
-      showLockedToast();
-      return;
-    }
-    setFindReplaceMode("find");
-  }, [isAgentLocked, showLockedToast]);
-
-  const openReplace = useCallback(() => {
-    if (isAgentLocked) {
-      showLockedToast();
-      return;
-    }
-    setFindReplaceMode("replace");
-  }, [isAgentLocked, showLockedToast]);
+  const search = useEditorSearch(isAgentLocked, showLockedToast);
+  const { openFind, openReplace } = search;
 
   const flushScrollPosition = useCallback(() => {
     if (scrollPositionTimerRef.current) {
@@ -456,45 +440,6 @@ function ChapterEditorContent({
     interval: 3000,
   });
 
-  useHotkeys(
-    "mod+s",
-    (event) => {
-      event.preventDefault();
-      if (isAgentLocked) {
-        showLockedToast();
-        return;
-      }
-      handleSave(true);
-    },
-    { enableOnFormTags: true },
-  );
-
-  useHotkeys(
-    "mod+f",
-    (event) => {
-      event.preventDefault();
-      if (isAgentLocked) {
-        showLockedToast();
-        return;
-      }
-      setFindReplaceMode("find");
-    },
-    { enableOnFormTags: true },
-  );
-
-  useHotkeys(
-    "mod+h",
-    (event) => {
-      event.preventDefault();
-      if (isAgentLocked) {
-        showLockedToast();
-        return;
-      }
-      setFindReplaceMode("replace");
-    },
-    { enableOnFormTags: true },
-  );
-
   const handleTitleChange = (newTitle: string) => {
     if (isAgentLocked) {
       showLockedToast();
@@ -609,78 +554,43 @@ function ChapterEditorContent({
     : undefined;
 
   return (
-    <Box
-      style={{
-        height: "100%",
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
+    <DocumentEditor
+      toolbar={{
+        editor,
+        onSave: handleSave,
+        isSaving,
+        hasChanges,
+        isAgentLocked,
+        onLockedAction: showLockedToast,
+        showChapterTools: true,
       }}
+      search={search}
+      title={{
+        value: title,
+        onChange: handleTitleChange,
+        onBlur: () => {
+          if (hasChanges && !isAgentLocked) void handleSave();
+        },
+        disabled: isAgentLocked,
+        onDisabledClick: showLockedToast,
+      }}
+      scrollProps={{
+        ref: containerRef,
+        className: `tiptap-editor-wrapper${showLineNumbers ? " tiptap-editor-wrapper--line-numbers" : ""} ${scrollbarProps.className}`,
+        onWheel: scrollbarProps.onWheel,
+        onMouseMove: scrollbarProps.onMouseMove,
+        onMouseLeave: scrollbarProps.onMouseLeave,
+        onScroll: handleEditorScroll,
+        onClick: isAgentLocked ? showLockedToast : undefined,
+      }}
+      contentProps={{
+        className: "chapter-editor-content",
+        style: { maxWidth: editorMaxWidth, ...lineNumberWidthStyle },
+      }}
+      bodyProps={{ ref: editorContentRef }}
+      editorClassName={`tiptap-editor${showLineNumbers ? " tiptap-editor--line-numbers" : ""}`}
+      wordCount={wordCount}
     >
-      <EditorToolbar
-        editor={editor}
-        onSave={handleSave}
-        isSaving={saveStatus === "saving"}
-        hasChanges={hasChanges}
-        isAgentLocked={isAgentLocked}
-        onLockedAction={showLockedToast}
-        onOpenFind={openFind}
-        onOpenReplace={openReplace}
-        showChapterTools
-      />
-
-      <AnimatePresence>
-        {findReplaceMode !== "closed" && editor && !isAgentLocked && (
-          <FindReplacePanel
-            key="find-replace-panel"
-            editor={editor}
-            showReplace={findReplaceMode === "replace"}
-            onClose={() => setFindReplaceMode("closed")}
-          />
-        )}
-      </AnimatePresence>
-
-      <Box
-        ref={containerRef}
-        style={{ flex: 1, minHeight: 0, overflow: "auto" }}
-        className={`tiptap-editor-wrapper${showLineNumbers ? " tiptap-editor-wrapper--line-numbers" : ""} ${scrollbarProps.className}`}
-        onWheel={scrollbarProps.onWheel}
-        onMouseMove={scrollbarProps.onMouseMove}
-        onMouseLeave={scrollbarProps.onMouseLeave}
-        onScroll={handleEditorScroll}
-        onClick={isAgentLocked ? showLockedToast : undefined}
-      >
-        <Box
-          className="chapter-editor-content"
-          style={{
-            maxWidth: editorMaxWidth,
-            ...lineNumberWidthStyle,
-          }}
-        >
-          <TitleInput
-            value={title}
-            onChange={handleTitleChange}
-            onBlur={() => {
-              if (hasChanges && !isAgentLocked) {
-                handleSave();
-              }
-            }}
-            disabled={isAgentLocked}
-            onDisabledClick={showLockedToast}
-          />
-          <Box style={{ borderBottom: "1px solid var(--gray-a4)" }} />
-          <Box
-            py="5"
-            ref={editorContentRef}
-          >
-            <EditorContent
-              editor={editor}
-              className={`tiptap-editor${showLineNumbers ? " tiptap-editor--line-numbers" : ""}`}
-            />
-          </Box>
-        </Box>
-      </Box>
-
       {!isAgentLocked && (
         <ContextMenu
           editor={editor}
@@ -688,33 +598,7 @@ function ChapterEditorContent({
           editorExtraItems={editorExtraItems}
         />
       )}
-
-      <Flex
-        px="6"
-        py="3"
-        justify="between"
-        align="center"
-        style={{
-          borderTop: "1px solid var(--gray-a4)",
-          background: "var(--gray-a2)",
-        }}
-      >
-        <Text
-          size="1"
-          color="gray"
-        >
-          {wordCount} {t("writing.words")}
-        </Text>
-        <Text
-          size="1"
-          color="gray"
-        >
-          {saveStatus === "saving" && t("writing.saving")}
-          {saveStatus === "saved" && t("writing.saved")}
-          {saveStatus === "unsaved" && t("writing.unsavedChanges")}
-        </Text>
-      </Flex>
-    </Box>
+    </DocumentEditor>
   );
 }
 

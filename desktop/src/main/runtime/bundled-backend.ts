@@ -1,8 +1,9 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
+import { toPythonPackageVersion } from "./package-version.js";
 
 export function selectBundledOpenFicWheel(fileNames: string[], expectedVersion: string): string | null {
-  const normalizedVersion = expectedVersion.replace(/-/g, "_").toLowerCase();
+  const normalizedVersion = toPythonPackageVersion(expectedVersion).replace(/-/g, "_");
   const prefix = `openfic-${normalizedVersion}-`;
   const matches = fileNames.filter((name) => {
     const normalizedName = name.toLowerCase();

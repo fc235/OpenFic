@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { DesktopHeader } from "./components/header";
 import { DesktopNotices } from "./components/desktop-notices";
 import { InstanceDeletionDialog } from "./components/instance-deletion-dialog";
+import { CloseDialog } from "./components/close-dialog";
 import { BootPage } from "./pages/boot/page";
 import { DataManagementPage } from "./pages/data-management/page";
 import { FrontendPage, type FrontendWebviewElement } from "./pages/frontend/page";
@@ -759,6 +760,7 @@ export function App() {
         onClose={() => setDeletionInstanceId(null)}
         onConfirm={handleDeleteInstance}
       />
+      <CloseDialog />
     </main>
   );
 }

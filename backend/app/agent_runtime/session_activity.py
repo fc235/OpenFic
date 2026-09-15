@@ -14,6 +14,11 @@ async def has_active_agent_sessions(session: AsyncSession) -> bool:
     if await get_agent_run_registry().has_running_tasks():
         return True
 
+    return await has_persisted_active_agent_sessions(session)
+
+
+async def has_persisted_active_agent_sessions(session: AsyncSession) -> bool:
+    """Check durable activity after the registry has closed new admissions."""
     if await _has_running_agent_task(session):
         return True
 

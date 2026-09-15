@@ -5,6 +5,12 @@ import weakref
 
 from loguru import logger
 
+from app.core.errors import ConflictError
+
+
+class AgentRunAdmissionClosed(ConflictError):
+    """A desktop idle shutdown has stopped accepting new agent runs."""
+
 
 class AgentRunRegistry:
     """Tracks active agent stream tasks so they can be cancelled explicitly."""
@@ -19,6 +25,7 @@ class AgentRunRegistry:
             weakref.WeakValueDictionary()
         )
         self._lock = asyncio.Lock()
+        self._draining = False
 
     def session_lock(self, session_id: str) -> asyncio.Lock:
         """Serialize lifecycle transitions for one parent agent session."""
@@ -33,6 +40,8 @@ class AgentRunRegistry:
         clear_cancelled: bool = True,
     ) -> None:
         async with self._lock:
+            if self._draining:
+                raise AgentRunAdmissionClosed("Agent backend is shutting down")
             if clear_cancelled:
                 self._cancelled_sessions.discard(session_id)
             session_tasks = self._tasks.setdefault(session_id, {})
@@ -48,6 +57,8 @@ class AgentRunRegistry:
         task: asyncio.Task[None],
     ) -> bool:
         async with self._lock:
+            if self._draining:
+                raise AgentRunAdmissionClosed("Agent backend is shutting down")
             session_tasks = self._tasks.setdefault(session_id, {})
             existing = session_tasks.get("__parent__")
             if existing is not None and not existing.done() and existing is not task:
@@ -65,6 +76,8 @@ class AgentRunRegistry:
         clear_cancelled: bool = True,
     ) -> None:
         async with self._lock:
+            if self._draining:
+                raise AgentRunAdmissionClosed("Agent backend is shutting down")
             if clear_cancelled:
                 self._cancelled_sessions.discard(session_id)
             session_tasks = self._tasks.setdefault(session_id, {})
@@ -86,6 +99,8 @@ class AgentRunRegistry:
         clear_cancelled: bool = True,
     ) -> bool:
         async with self._lock:
+            if self._draining:
+                raise AgentRunAdmissionClosed("Agent backend is shutting down")
             session_tasks = self._tasks.setdefault(session_id, {})
             existing = session_tasks.get(child_run_id)
             if existing is not None and not existing.done() and existing is not task:
@@ -179,6 +194,23 @@ class AgentRunRegistry:
         async with self._lock:
             session_tasks = self._tasks.get(session_id) or {}
             return any(not task.done() for task in session_tasks.values())
+
+    async def try_begin_idle_shutdown(self) -> bool:
+        """Close admissions only when no registered run is active, under one lock."""
+        async with self._lock:
+            if self._draining or any(
+                not task.done()
+                for session_tasks in self._tasks.values()
+                for task in session_tasks.values()
+            ):
+                return False
+            self._draining = True
+            return True
+
+    async def cancel_idle_shutdown(self) -> None:
+        """Reopen admissions when the persisted activity check rejects shutdown."""
+        async with self._lock:
+            self._draining = False
 
     async def has_running_tasks(self) -> bool:
         async with self._lock:

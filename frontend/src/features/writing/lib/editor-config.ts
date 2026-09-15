@@ -18,8 +18,7 @@ import { Extension } from "@tiptap/react";
 import { serializeClipboardText } from "@/components/editor-clipboard";
 import { createEditorShortcuts, type EditorShortcutCallbacks } from "@/components/editor-shortcuts";
 import { PARAGRAPH_INDENT } from "@/components/editor-toolbar-actions";
-
-import { SearchAndReplace } from "./search-and-replace";
+import { SearchAndReplace } from "@/components/search-and-replace";
 
 export type { EditorShortcutCallbacks } from "@/components/editor-shortcuts";
 

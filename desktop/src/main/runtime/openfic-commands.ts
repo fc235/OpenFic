@@ -1,3 +1,5 @@
+import { toPythonPackageVersion } from "./package-version.js";
+
 interface SpawnCommand {
   command: string;
   args: string[];
@@ -21,15 +23,15 @@ export function createOpenFicInstallCommand(
   forceReinstall = false,
   wheelPath?: string,
 ): Omit<SpawnCommand, "command"> {
-  const installTarget = wheelPath ?? `openfic==${version}`;
+  const installTarget = wheelPath ?? `openfic==${toPythonPackageVersion(version)}`;
   return {
     args: ["pip", "install", "--python", venvPythonPath, ...(forceReinstall ? ["--reinstall"] : []), installTarget],
   };
 }
 
-export function createOpenFicServeCommand(venvPythonPath: string, port: number): SpawnCommand {
+export function createOpenFicServeCommand(venvPythonPath: string, port: number, host = "127.0.0.1"): SpawnCommand {
   return {
     command: resolveOpenFicCliPath(venvPythonPath),
-    args: ["serve", "--host", "127.0.0.1", "--port", String(port)],
+    args: ["serve", "--host", host, "--port", String(port)],
   };
 }

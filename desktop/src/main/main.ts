@@ -1,4 +1,4 @@
-import { app, dialog, Menu, type BrowserWindow } from "electron";
+import { app, dialog, ipcMain, Menu, type BrowserWindow } from "electron";
 import { mkdir } from "node:fs/promises";
 import { registerAppScheme, handleAppProtocol, setRuntimeConfig } from "./protocol.js";
 import { getDevDataDir, isDevMode, DEV_INSTANCE_ID, startDevBackend } from "./runtime/dev-backend.js";
@@ -9,6 +9,7 @@ import { throwIfAborted, waitForBackend } from "./health.js";
 import { ensurePortablePython, resolveRuntimeDir } from "./runtime/python.js";
 import { ensureOpenFicRuntime, startLocalOpenFicBackend } from "./runtime/openfic.js";
 import { resolveBundledOpenFicWheel } from "./runtime/bundled-backend.js";
+import { matchesOpenFicVersion } from "./runtime/package-version.js";
 import { forceStopBackendProcess, stopBackendProcess, type BackendProcessHandle } from "./process.js";
 import { resolveDataDir } from "./data-location.js";
 import { initializeUpdater } from "./updater.js";
@@ -19,6 +20,11 @@ import { appendLog, setLogsDir } from "./logging.js";
 import { captureException, captureExceptionImmediate, startErrorTelemetry, syncTelemetryEnabled } from "./telemetry.js";
 import type { InitializeAppResult } from "../shared/ipc.js";
 import type { DesktopConfig, DesktopInstance } from "../shared/config.js";
+import type { DesktopPreferencesState } from "../shared/desktop-preferences.js";
+import { getLanAddresses, readDesktopPreferences, saveDesktopPreferences } from "./desktop-preferences.js";
+import { createWindowCloseHandler } from "./window-close.js";
+import { createShellCloseDialog } from "./close-dialog.js";
+import { createLanRestartController } from "./lan-restart.js";
 
 function writeStartupLog(message: string): void {
   appendLog("startup", message);
@@ -29,6 +35,76 @@ let backendHandle: BackendProcessHandle | null = null;
 let activeInstanceId: string | null = null;
 let isQuitting = false;
 let startupAbortController: AbortController | null = null;
+let keepBackendAlive = false;
+let allowWindowClose = false;
+let lanPollTimer: ReturnType<typeof setInterval> | null = null;
+let initialization: Promise<InitializeAppResult> | null = null;
+
+const lanRestart = createLanRestartController({
+  getBackend: () => backendHandle,
+  isStarting: () => startupAbortController !== null || isQuitting,
+  requestIdleStop: async (backend) => {
+    const response = await fetch(`${backend.baseUrl}/api/v1/health/shutdown?only_if_idle=true`, {
+      method: "POST",
+      headers: { "X-OpenFic-Shutdown-Token": backend.shutdownToken },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (response.status === 409) return false;
+    if (!response.ok) throw new Error(`无法安全重启后端：${response.status}`);
+    return true;
+  },
+  restart: async (port, expectedBackend) => {
+    const config = await readDesktopConfig();
+    if (backendHandle !== expectedBackend || startupAbortController || isQuitting) return;
+    const instance = config?.instances.find((item) => item.id === activeInstanceId);
+    if (!instance || instance.mode !== "local") throw new Error("未找到活动的本地实例");
+    const controller = beginStartupOperation();
+    const progress = createStartupProgress();
+    try {
+      await stopActiveBackend();
+      throwIfAborted(controller.signal);
+      if (isDevMode()) {
+        const result = await startDevBackend(progress, controller.signal, port);
+        if (result.handle) setBackend(result.handle);
+        setBackendBaseUrl(result.baseUrl);
+      } else {
+        await startLocalBackend(instance.installDir, resolveDataDir(instance), progress, controller.signal, port);
+      }
+      progress.complete();
+      mainWindow?.webContents.reload();
+    } catch (error) {
+      progress.fail(error);
+      throw error;
+    } finally { finishStartupOperation(controller); }
+  },
+});
+
+async function getDesktopPreferencesState(): Promise<DesktopPreferencesState> {
+  const preferences = await readDesktopPreferences();
+  const config = await readDesktopConfig();
+  const instance = config?.instances.find((item) => item.id === activeInstanceId);
+  const running = isBackendRunning();
+  return {
+    ...preferences,
+    backendRunning: running,
+    localBackend: instance?.mode === "local",
+    lanPending: lanRestart.isPending(preferences.lanEnabled),
+    addresses: running && backendHandle?.bindHost === "0.0.0.0"
+      ? getLanAddresses(Number(new URL(backendHandle.baseUrl).port)) : [],
+    error: lanRestart.error,
+  };
+}
+
+async function updateDesktopPreferences(patch: unknown): Promise<DesktopPreferencesState> {
+  await saveDesktopPreferences(patch);
+  lanRestart.clearError();
+  // Return the persisted choice before restarting; the settings panel can show pending state.
+  setTimeout(() => {
+    void readDesktopPreferences().then((latest) => lanRestart.apply(latest.lanEnabled))
+      .catch((error) => appendLog("runtime", String(error)));
+  }, 500);
+  return getDesktopPreferencesState();
+}
 
 writeStartupLog("process start");
 startErrorTelemetry();
@@ -41,7 +117,9 @@ function setBackend(handle: BackendProcessHandle): void {
   backendHandle.process.on("exit", () => {
     const wasActiveHandle = backendHandle === handle;
     if (wasActiveHandle) backendHandle = null;
-    if (!isQuitting && wasActiveHandle) {
+    if (!isQuitting && wasActiveHandle && !lanRestart.restarting) {
+      backendHandle = null;
+      if (!mainWindow) { app.quit(); return; }
       dialog.showErrorBox("OpenFic 后端已退出", `后端服务异常退出。日志路径：${handle.logPath}`);
       app.quit();
     }
@@ -56,7 +134,7 @@ function clearBackend(): void {
 }
 
 function isBackendRunning(): boolean {
-  return backendHandle !== null;
+  return backendHandle !== null && backendHandle.process.exitCode === null && !backendHandle.process.killed;
 }
 
 async function stopActiveBackend(): Promise<void> {
@@ -76,6 +154,28 @@ function onConfigSaved(config: DesktopConfig): void {
 }
 
 function attachWindowLifecycle(window: BrowserWindow): void {
+  const closeDialog = createShellCloseDialog(window, ipcMain);
+  const requestClose = createWindowCloseHandler({
+    readBehavior: async () => (await readDesktopPreferences()).closeBehavior,
+    choose: closeDialog.choose,
+    remember: (behavior) => saveDesktopPreferences({ closeBehavior: behavior }),
+    closeFrontend: () => {
+      if (startupAbortController) {
+        void dialog.showMessageBox(window, { message: "后端正在启动或重启，请完成后再仅退出前端。" });
+        return;
+      }
+      keepBackendAlive = isBackendRunning();
+      allowWindowClose = true;
+      window.close();
+    },
+    quit: () => { keepBackendAlive = false; cancelStartup(); app.quit(); },
+    onError: (error) => dialog.showErrorBox("无法关闭 OpenFic", error instanceof Error ? error.message : String(error)),
+  });
+  window.on("close", (event) => {
+    if (isQuitting || allowWindowClose) return;
+    event.preventDefault();
+    void requestClose();
+  });
   window.on("closed", () => {
     if (mainWindow === window) mainWindow = null;
   });
@@ -87,8 +187,11 @@ function openMainWindow(): void {
     existingWindow.focus();
     return;
   }
+  allowWindowClose = false;
+  keepBackendAlive = false;
   mainWindow = createMainWindow();
   attachWindowLifecycle(mainWindow);
+  if (!isDevMode()) void initializeUpdater(mainWindow).catch((error) => appendLog("startup", String(error)));
 }
 
 function createStartupProgress(): StartupProgressTracker {
@@ -117,6 +220,7 @@ async function startLocalBackend(
   dataDir: string,
   startupProgress: StartupProgressTracker,
   signal: AbortSignal,
+  preferredPort?: number,
 ): Promise<string | null> {
   throwIfAborted(signal);
   const runtimeDir = resolveRuntimeDir(installDir);
@@ -191,6 +295,7 @@ async function startLocalBackend(
     startupProgress,
     signal,
     dataDir,
+    preferredPort,
   );
   setBackend(backend);
   setBackendBaseUrl(backend.baseUrl);
@@ -235,7 +340,7 @@ async function activateInstance(
       message: "正在比较桌面端与后端版本",
       progress: 0.85,
     });
-    if (health.version === app.getVersion()) return { compatibilityWarning: null, maintenanceWarning: null };
+    if (matchesOpenFicVersion(health.version, app.getVersion())) return { compatibilityWarning: null, maintenanceWarning: null };
     return {
       compatibilityWarning: `远程实例版本为 ${health.version ?? "未知"}，桌面端版本为 ${app.getVersion()}，部分功能可能不兼容。`,
       maintenanceWarning: null,
@@ -401,7 +506,22 @@ async function initializeDevApp(): Promise<InitializeAppResult> {
   }
 }
 
-async function initializeApp(): Promise<InitializeAppResult> {
+function initializeApp(): Promise<InitializeAppResult> {
+  if (initialization) return initialization;
+  if (lanRestart.restarting) {
+    return lanRestart.waitForIdle().then(initializeApp);
+  }
+  initialization = initializeAppOnce();
+  void initialization.then(() => { initialization = null; }, () => { initialization = null; });
+  return initialization;
+}
+
+async function initializeAppOnce(): Promise<InitializeAppResult> {
+  if (isBackendRunning() && backendHandle && activeInstanceId) {
+    await waitForBackend(backendHandle.baseUrl, 5000);
+    setBackendBaseUrl(backendHandle.baseUrl);
+    return { status: "ready", activeInstanceId };
+  }
   if (isDevMode()) return initializeDevApp();
   const controller = beginStartupOperation();
   const startupProgress = createStartupProgress();
@@ -480,11 +600,18 @@ async function bootstrap(): Promise<void> {
     onConfigSaved,
     isBackendRunning,
     stopActiveBackend,
+    getDesktopPreferencesState,
+    updateDesktopPreferences,
   });
 
   writeStartupLog("opening shell window");
   openMainWindow();
-  if (!isDevMode() && mainWindow) await initializeUpdater(mainWindow);
+  lanPollTimer = setInterval(() => {
+    if (!backendHandle || isQuitting) return;
+    void readDesktopPreferences().then((preferences) => lanRestart.apply(preferences.lanEnabled))
+      .catch((error) => appendLog("runtime", `读取桌面设置失败：${String(error)}`));
+  }, 3000);
+  lanPollTimer.unref();
 }
 
 // Keep Chromium session data in Electron's default AppData location. Webviews
@@ -498,8 +625,9 @@ if (!gotLock) {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
-    }
+    } else openMainWindow();
   });
+  app.on("activate", () => { if (!mainWindow) openMainWindow(); });
 
   app.whenReady().then(() => {
     if (process.platform === "win32") app.setAppUserModelId("com.openfic.app");
@@ -508,10 +636,13 @@ if (!gotLock) {
   });
 
   app.on("window-all-closed", () => {
+    if (keepBackendAlive && isBackendRunning()) return;
     app.quit();
   });
 
   app.on("before-quit", (event) => {
+    if (lanPollTimer) clearInterval(lanPollTimer);
+    cancelStartup();
     if (isQuitting) return;
     const handle = backendHandle;
     if (!handle) {

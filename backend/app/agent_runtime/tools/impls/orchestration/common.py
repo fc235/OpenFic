@@ -316,12 +316,17 @@ async def ensure_child_processing(
                 )
 
     task = asyncio.create_task(_run())
-    registered = await registry.try_register_child(
-        parent_session_id,
-        child_run_id,
-        task,
-        clear_cancelled=clear_cancelled,
-    )
+    try:
+        registered = await registry.try_register_child(
+            parent_session_id,
+            child_run_id,
+            task,
+            clear_cancelled=clear_cancelled,
+        )
+    except BaseException:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        raise
     if registered:
         if not clear_cancelled and await registry.is_cancelled(parent_session_id):
             task.cancel()

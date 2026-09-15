@@ -1,4 +1,5 @@
 import { Box, Flex, IconButton, Text, Tooltip } from "@radix-ui/themes";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUp, CloudUpload, ExternalLink, ShieldCheck, Square, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -6,12 +7,14 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 
+import { ModelIdSelect, Spinner, type ModelIdSelectOption } from "@/components";
+
 import "react-photo-view/dist/react-photo-view.css";
 
-import { ModelIdSelect, Spinner, type ModelIdSelectOption } from "@/components";
 import { toast } from "@/components";
 import { SimpleSelect, type SelectOption } from "@/components/select";
 import { ProviderIcon } from "@/features/settings/lib/provider-icons";
+import { fetchSettings, updateSettings } from "@/features/settings/lib/settings-api";
 import type { AgentPendingMessage, AgentSessionStatus, ReasoningEffort } from "@/lib/agent.types";
 
 import { useAgentInputHistory } from "../../hooks/use-agent-input-history";
@@ -100,6 +103,17 @@ export function AgentInput({
   onUploadAttachments,
 }: AgentInputProps) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: fetchSettings });
+  const defaultModelMutation = useMutation({
+    mutationFn: (id: string) => updateSettings({ default_model: id }),
+    onSuccess: (updatedSettings) => {
+      queryClient.setQueryData(["settings"], updatedSettings);
+      void queryClient.invalidateQueries({ queryKey: ["settings"] });
+      toast.success(t("models.defaultModelUpdated"));
+    },
+    onError: () => toast.error(t("common.saveFailed")),
+  });
   const bodyMode = getAgentInputBodyMode(agentStatus, Boolean(specialPanels), forceSpecialPanels);
   const hasContent = value.trim().length > 0 || attachments.length > 0;
   const hasPendingMessage = pendingMessage !== null;
@@ -564,6 +578,9 @@ export function AgentInput({
                     style={{ flex: "0 1 auto", minWidth: 0 }}
                   >
                     <ModelIdSelect
+                      defaultModelId={settings?.defaultModel}
+                      onSetDefaultModel={(id) => defaultModelMutation.mutate(id)}
+                      isSavingDefaultModel={defaultModelMutation.isPending}
                       value={modelId}
                       models={models}
                       onChange={onModelChange}

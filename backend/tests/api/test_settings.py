@@ -108,8 +108,6 @@ async def test_get_settings_default(client: AsyncClient) -> None:
     assert data["editor_auto_convert_punctuation"] is False
     assert data["editor_auto_pair_symbols"] is False
     assert data["editor_show_line_numbers"] is False
-    assert data["quick_start_enabled"] is False
-    assert data["quick_start_prompt"] == ""
 
 
 @pytest.mark.asyncio
@@ -619,50 +617,3 @@ async def test_get_settings_does_not_lazy_persist_agent_tool_permissions(
     assert setting is None
     bypass_setting = await setting_repo.get_by_key(session, "agent_bypass_tool_approval")
     assert bypass_setting is None
-
-
-@pytest.mark.asyncio
-async def test_quick_start_settings_lifecycle(client: AsyncClient) -> None:
-    saved = await client.patch(
-        "/api/v1/settings",
-        json={"quick_start_prompt": "请分析当前章节。"},
-    )
-    assert saved.status_code == 200
-    assert saved.json()["quick_start_enabled"] is False
-    assert saved.json()["quick_start_prompt"] == "请分析当前章节。"
-
-    enabled = await client.patch(
-        "/api/v1/settings",
-        json={"quick_start_enabled": True},
-    )
-    assert enabled.status_code == 200
-    assert enabled.json()["quick_start_enabled"] is True
-
-    disabled = await client.patch(
-        "/api/v1/settings",
-        json={"quick_start_enabled": False},
-    )
-    assert disabled.status_code == 200
-    assert disabled.json()["quick_start_enabled"] is False
-    assert disabled.json()["quick_start_prompt"] == "请分析当前章节。"
-
-    follow_up = await client.get("/api/v1/settings")
-    assert follow_up.status_code == 200
-    assert follow_up.json()["quick_start_prompt"] == "请分析当前章节。"
-
-
-@pytest.mark.asyncio
-async def test_quick_start_rejects_enabled_empty_prompt_atomically(
-    client: AsyncClient,
-) -> None:
-    response = await client.put(
-        "/api/v1/settings",
-        json={"quick_start_enabled": True, "quick_start_prompt": "   \n"},
-    )
-    assert response.status_code == 422
-    assert response.json()["detail"] == "启用快捷新会话前必须填写启动提示词"
-
-    follow_up = await client.get("/api/v1/settings")
-    assert follow_up.status_code == 200
-    assert follow_up.json()["quick_start_enabled"] is False
-    assert follow_up.json()["quick_start_prompt"] == ""

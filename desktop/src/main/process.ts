@@ -1,6 +1,7 @@
 import { app } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import {
   abortBackendStartup,
   requestBackendStop,
@@ -13,6 +14,7 @@ export interface BackendProcessHandle extends BackendStopHandle {
   baseUrl: string;
   logPath: string;
   shutdownToken: string;
+  bindHost?: string;
   logsClosed: Promise<void>;
   stopPromise?: Promise<void>;
 }
@@ -21,6 +23,7 @@ export interface StartBackendOptions {
   command: string;
   args: string[];
   port: number;
+  bindHost?: string;
   dataDir?: string;
   environment?: NodeJS.ProcessEnv;
   onOutputLine?: (line: string) => void;
@@ -77,10 +80,13 @@ export function startBackendProcess(options: StartBackendOptions): BackendProces
     cwd: dataDir,
     env: {
       ...process.env,
-      OPENFIC_SERVER_HOST: "127.0.0.1",
+      OPENFIC_SERVER_HOST: options.bindHost ?? "127.0.0.1",
       OPENFIC_SERVER_PORT: String(options.port),
       OPENFIC_DATA_DIR: dataDir,
       OPENFIC_SHUTDOWN_TOKEN: shutdownToken,
+      OPENFIC_FRONTEND_DIST: app.isPackaged
+        ? path.join(process.resourcesPath, "frontend-dist")
+        : path.join(app.getAppPath(), "..", "frontend", "dist"),
       PYTHONIOENCODING: "utf-8",
       PYTHONUTF8: "1",
       ...options.environment,
@@ -108,6 +114,7 @@ export function startBackendProcess(options: StartBackendOptions): BackendProces
     baseUrl: `http://127.0.0.1:${options.port}`,
     logPath,
     shutdownToken,
+    bindHost: options.bindHost ?? "127.0.0.1",
     logsClosed: logsClosedPromise,
   };
 }

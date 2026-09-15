@@ -1,0 +1,26 @@
+<!doctype html>
+<html><head><meta charset="utf-8" /></head><body><div id="root"></div><script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { Theme } from '@radix-ui/themes';
+import '@radix-ui/themes/styles.css';
+import { DesktopSettings } from '../src/features/settings/components/desktop-settings';
+import '../src/i18n';
+const params = new URLSearchParams(location.search);
+let state = { closeBehavior:'ask',lanEnabled:false,backendRunning:true,localBackend:!params.has('remote'),lanPending:false,addresses:[] };
+window.desktopPatches = [];
+window.updateDesktopState = (patch) => { state = {...state,...patch}; };
+window.failDesktopSave = false;
+window.failDesktopPoll = false;
+if (!params.has('web')) window.openficDesktopHost = {
+ getDesktopPreferences: async () => { if (window.failDesktopPoll) throw new Error('Poll unavailable'); return {...state}; },
+ saveDesktopPreferences: async (patch) => {
+   window.desktopPatches.push(patch);
+   await new Promise(resolve=>setTimeout(resolve,150));
+   if (window.failDesktopSave) throw new Error('Save unavailable');
+   state = {...state,...patch};
+   return state;
+ }
+};
+createRoot(document.getElementById('root')).render(React.createElement(Theme,{},React.createElement(DesktopSettings)));
+</script></body></html>

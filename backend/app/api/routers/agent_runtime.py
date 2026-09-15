@@ -49,7 +49,7 @@ from app.agent_runtime.runner.checkpointer import (
 )
 from app.agent_runtime.runner.session_runner import SessionRunner
 from app.agent_runtime.runner.subagent_runner import SubagentRunner
-from app.agent_runtime.runner.run_registry import get_agent_run_registry
+from app.agent_runtime.runner.run_registry import AgentRunAdmissionClosed, get_agent_run_registry
 from app.agent_runtime.streaming.replay_buffer import get_agent_event_replay_buffer
 from app.agent_runtime.tools import ToolRegistry
 from app.agent_runtime.tools.impls.orchestration.common import ensure_child_processing
@@ -703,8 +703,12 @@ async def _launch_task(
         else:
             async with _agent_session_lifecycle_lock(registry, session_id):
                 await _register_and_start()
-    except Exception:
+    except Exception as error:
         task.cancel()
+        if isinstance(error, AgentRunAdmissionClosed):
+            close = getattr(coro, "close", None)
+            if callable(close):
+                close()
         await _set_task_running_state(
             db_session_factory=db_session_factory,
             task_id=task_id,
@@ -712,6 +716,11 @@ async def _launch_task(
             project_id=project_id,
             is_running=False,
         )
+        if isinstance(error, AgentRunAdmissionClosed):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="后端正在重启，请稍后重试",
+            ) from error
         raise
 
 
@@ -728,6 +737,8 @@ async def _replace_registered_parent_task(
         return False
 
     async with lock:
+        if getattr(registry, "_draining", False) is True:
+            return False
         session_tasks = tasks_by_session.setdefault(session_id, {})
         if session_tasks.get("__parent__") is not current_task:
             return False

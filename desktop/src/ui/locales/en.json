@@ -234,5 +234,14 @@
         "delete-old": "Deleting original directory…"
       }
     }
+  },
+  "close": {
+    "title": "Close OpenFic",
+    "description": "Choose how to close OpenFic",
+    "frontend": "Close frontend only",
+    "frontendDescription": "Close this window while keeping the local backend, running tasks, and enabled LAN access available.",
+    "quit": "Quit completely",
+    "quitDescription": "Close this window and stop the local backend, running tasks, and LAN access.",
+    "remember": "Remember my choice"
   }
 }

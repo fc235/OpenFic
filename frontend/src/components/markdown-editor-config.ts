@@ -11,6 +11,7 @@ import { createLowlight, common } from "lowlight";
 
 import { serializeClipboardMarkdown } from "./editor-clipboard";
 import { createEditorShortcuts, type EditorShortcutCallbacks } from "./editor-shortcuts";
+import { SearchAndReplace } from "./search-and-replace";
 
 export type { EditorShortcutCallbacks } from "./editor-shortcuts";
 
@@ -130,6 +131,7 @@ export function createMarkdownEditorExtensions(options: MarkdownEditorExtensions
     CharacterCount,
     Markdown,
     MarkdownClipboard,
+    SearchAndReplace,
   ];
 
   if (shortcuts) {

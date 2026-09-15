@@ -4,7 +4,7 @@
  * 悬浮的最近任务卡片组件
  */
 
-import { Box, Button, Flex, Text } from "@radix-ui/themes";
+import { Box, Flex, Text } from "@radix-ui/themes";
 import { useTranslation } from "react-i18next";
 
 import type { TaskListItem } from "@/lib/task.types";
@@ -18,8 +18,6 @@ interface RecentTasksCardProps {
   onToggleFavorite: (taskId: string, isFavorited: boolean) => void;
   onRenameTask: (taskId: string, title: string) => Promise<void>;
   onViewAll: () => void;
-  onQuickStart?: () => void;
-  quickStartDisabled?: boolean;
 }
 
 export function RecentTasksCard({
@@ -29,8 +27,6 @@ export function RecentTasksCard({
   onToggleFavorite,
   onRenameTask,
   onViewAll,
-  onQuickStart,
-  quickStartDisabled = false,
 }: RecentTasksCardProps) {
   const { t } = useTranslation();
 
@@ -47,18 +43,6 @@ export function RecentTasksCard({
           maxWidth: "320px",
         }}
       >
-        {onQuickStart ? (
-          <Button
-            type="button"
-            variant="soft"
-            mb="4"
-            style={{ width: "100%" }}
-            onClick={onQuickStart}
-            disabled={quickStartDisabled}
-          >
-            {t("assistant.quickStart")}
-          </Button>
-        ) : null}
         {hasRecentTasks ? (
           <>
             {/* 标题栏 */}

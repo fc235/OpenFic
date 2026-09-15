@@ -24,4 +24,5 @@ stats.html
 
 # Playwright
 test-results
+test-results-*
 playwright-report

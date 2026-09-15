@@ -1,4 +1,5 @@
 import { app } from "electron";
+import { readDesktopPreferences } from "../desktop-preferences.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { DesktopInstance } from "../../shared/config.js";
@@ -87,6 +88,7 @@ async function fetchBackendMaintenanceError(baseUrl: string): Promise<string | n
 export async function startDevBackend(
   startupProgress: StartupProgressTracker,
   signal: AbortSignal,
+  preferredPort?: number,
 ): Promise<DevBackendResult> {
   throwIfAborted(signal);
   const externalUrl = getDevBackendUrl();
@@ -113,23 +115,25 @@ export async function startDevBackend(
     message: "正在从 backend 源码启动本地服务",
     progress: 0.3,
   });
-  const port = await findFreePort();
+  const port = preferredPort ?? await findFreePort();
+  const bindHost = (await readDesktopPreferences()).lanEnabled ? "0.0.0.0" : "127.0.0.1";
   throwIfAborted(signal);
   const backendDir = path.join(app.getAppPath(), "..", "backend");
   const args = [
     "run",
     "--directory",
     backendDir,
-    "uvicorn",
-    "app.main:app",
+    "python",
+    "-m",
+    "app.cli",
+    "serve",
     "--host",
-    "127.0.0.1",
+    bindHost,
     "--port",
     String(port),
   ];
-  if (process.platform === "win32") args.push("--loop", "app.cli:_windows_selector_loop_factory");
 
-  const handle = startBackendProcess({ command: "uv", args, port, dataDir: devDataDir });
+  const handle = startBackendProcess({ command: "uv", args, port, bindHost, dataDir: devDataDir });
   try {
     await waitForBackend(handle.baseUrl, {
       process: handle.process,

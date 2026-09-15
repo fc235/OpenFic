@@ -1,6 +1,11 @@
 import type { DesktopConfig, DesktopInstance } from "./config.js";
 
 export const IpcChannels = {
+  closeDialogRequested: "window:close-dialog-requested",
+  closeDialogReady: "window:close-dialog-ready",
+  closeDialogResolve: "window:close-dialog-resolve",
+  getDesktopPreferences: "desktop:preferences:get",
+  saveDesktopPreferences: "desktop:preferences:save",
   getConfig: "config:get",
   saveConfig: "config:save",
   initializeApp: "app:initialize",
@@ -52,6 +57,15 @@ export const IpcChannels = {
   selectSaveFile: "dialog:select-save-file",
   selectOpenFile: "dialog:select-open-file",
 } as const;
+
+export interface CloseDialogChoice {
+  behavior: "frontend" | "quit" | null;
+  remember: boolean;
+}
+
+export interface CloseDialogResponse extends CloseDialogChoice {
+  requestId: string;
+}
 
 export type SetupStep =
   | "download-python"

@@ -16,7 +16,7 @@ const releaseNotesByVersion = new Map<string, string>();
 
 function publishState(nextState: UpdateState): void {
   updateState = nextState;
-  shellWindow?.webContents.send(IpcChannels.updateState, nextState);
+  if (shellWindow && !shellWindow.isDestroyed()) shellWindow.webContents.send(IpcChannels.updateState, nextState);
 }
 
 function describeError(error: Error): string {
@@ -100,7 +100,7 @@ export async function initializeUpdater(window: BrowserWindow): Promise<void> {
   shellWindow = window;
   await configureSystemProxy(autoUpdater.netSession);
   if (initialized) {
-    window.webContents.send(IpcChannels.updateState, updateState);
+    if (!window.isDestroyed()) window.webContents.send(IpcChannels.updateState, updateState);
     return;
   }
 
@@ -118,6 +118,8 @@ export async function initializeUpdater(window: BrowserWindow): Promise<void> {
 
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
+  // Beta is installed explicitly; checks continue to offer stable releases.
+  autoUpdater.allowPrerelease = false;
   autoUpdater.channel = `latest-win-${updateArchitecture}`;
   autoUpdater.allowDowngrade = false;
   configurePortableInstallDirectory();

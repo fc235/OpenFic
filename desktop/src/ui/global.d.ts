@@ -1,5 +1,6 @@
 import type { DesktopConfig } from "../shared/config";
 import type {
+  CloseDialogResponse,
   DataInfo,
   DataProgressEvent,
   DeleteInstanceResult,
@@ -19,6 +20,8 @@ import type { DesktopInstance } from "../shared/config";
 declare global {
   interface Window {
     openficDesktop: {
+      resolveCloseDialog: (response: CloseDialogResponse) => void;
+      onCloseDialogRequested: (handler: (requestId: string) => void) => () => void;
       getConfig: () => Promise<DesktopConfig | null>;
       saveConfig: (config: DesktopConfig) => Promise<void>;
       initializeApp: () => Promise<InitializeAppResult>;

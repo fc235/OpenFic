@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import React from "react";
+      import { createRoot } from "react-dom/client";
+      import { Theme } from "@radix-ui/themes";
+      import "@radix-ui/themes/styles.css";
+      import { ModelIdSelect } from "../src/components/model-id-select";
+      import "../src/i18n";
+      const h = React.createElement;
+      const options = (
+        location.search.includes("many")
+          ? ["a", "b", "c", "d", "e", "f", "g", "h", "i"]
+          : ["a", "b", "c"]
+      ).map((id) => ({ id, value: id, name: `模型${id}` }));
+      window.selections = [];
+      window.defaults = [];
+      function App() {
+        const [value, setValue] = React.useState("a");
+        const [defaultId, setDefaultId] = React.useState("a");
+        const [disabled, setDisabled] = React.useState(false);
+        const [loading, setLoading] = React.useState(false);
+        const [models, setModels] = React.useState(options);
+        const [mounted, setMounted] = React.useState(true);
+        const [saving, setSaving] = React.useState(false);
+        window.setDisabled = setDisabled;
+        window.setLoading = setLoading;
+        window.removeModel = () => setModels(options.filter((model) => model.id !== "b"));
+        window.unmountModel = () => setMounted(false);
+        window.changeModel = setValue;
+        window.finishSave = () => {
+          setDefaultId(window.defaults.at(-1));
+          setSaving(false);
+        };
+        return h(
+          React.Fragment,
+          {},
+          h("p", { id: "outside" }, "外部区域"),
+          h("output", { id: "current" }, value),
+          mounted &&
+            h(ModelIdSelect, {
+              value,
+              models,
+              defaultModelId: defaultId,
+              disabled,
+              isLoading: loading,
+              compact: true,
+              editable: false,
+              allowCustomValue: false,
+              isSavingDefaultModel: saving,
+              onChange: (value) => {
+                window.selections.push(value);
+                setValue(value);
+              },
+              onSetDefaultModel: location.search.includes("immediate")
+                ? undefined
+                : (value) => {
+                    window.defaults.push(value);
+                    if (window.holdSave) setSaving(true);
+                    else setDefaultId(value);
+                  },
+            }),
+        );
+      }
+      createRoot(document.getElementById("root")).render(h(Theme, {}, h(App)));
+    </script>
+  </body>
+</html>

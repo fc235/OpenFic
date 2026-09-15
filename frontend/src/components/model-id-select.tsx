@@ -12,7 +12,15 @@ import {
 import { AlertCircle, ChevronDown, Component, RefreshCw, Search } from "lucide-react";
 import { motion } from "motion/react";
 /* oxlint-disable react-refresh/only-export-components */
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -36,6 +44,9 @@ export interface ModelIdSelectOption extends AvailableModel {
 }
 
 interface ModelIdSelectProps {
+  defaultModelId?: string;
+  onSetDefaultModel?: (value: string) => void;
+  isSavingDefaultModel?: boolean;
   value: string;
   onChange: (value: string, name?: string) => void;
   models: ModelIdSelectOption[];
@@ -159,12 +170,40 @@ export function ModelIdSelect({
   triggerPrefix,
   hideTriggerChevron = false,
   triggerClassName,
+  defaultModelId,
+  onSetDefaultModel,
+  isSavingDefaultModel = false,
 }: ModelIdSelectProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(value || "");
   const [isListReady, setIsListReady] = useState(false);
   const listReadyFrameRef = useRef<number | null>(null);
+  const pendingSelectionRef = useRef<{
+    modelId: string;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
+  const cancelPendingSelection = useCallback(() => {
+    if (pendingSelectionRef.current) clearTimeout(pendingSelectionRef.current.timer);
+    pendingSelectionRef.current = null;
+  }, []);
+  const canSetDefaultModel = Boolean(onSetDefaultModel);
+
+  // A dismissed or invalidated menu must never commit a delayed session change.
+  useLayoutEffect(
+    () => cancelPendingSelection,
+    [
+      cancelPendingSelection,
+      open,
+      disabled,
+      isLoading,
+      models,
+      value,
+      searchQuery,
+      canSetDefaultModel,
+      isSavingDefaultModel,
+    ],
+  );
 
   const popoverWidth = compact ? 360 : 500;
   const headerPad = compact ? "1" : "2";
@@ -172,7 +211,11 @@ export function ModelIdSelect({
   const modelNameSize = compact ? "1" : "2";
   const labelSize = compact ? "1" : "2";
   const showSearchBox = !compact || models.length >= 8;
-  const scrollAreaHeight = compact ? "min(300px, calc(100dvh - 104px))" : 300;
+  const scrollAreaHeight = onSetDefaultModel
+    ? "min(300px, calc(100dvh - 140px))"
+    : compact
+      ? "min(300px, calc(100dvh - 104px))"
+      : 300;
   const placeholderHeight = compact ? "auto" : 200;
 
   const selectedModel = useMemo(
@@ -219,13 +262,35 @@ export function ModelIdSelect({
   );
 
   const handleSelectModel = (model: ModelIdSelectOption) => {
+    cancelPendingSelection();
+    if (disabled || isLoading) return;
     const nextValue = getModelValue(model);
     onChange(nextValue, model.name);
     setSearchQuery(model.id);
     setOpen(false);
   };
 
+  const handleModelClick = (model: ModelIdSelectOption, clickCount: number) => {
+    if (disabled || isLoading) return;
+    if (!onSetDefaultModel || clickCount === 0) {
+      handleSelectModel(model);
+      return;
+    }
+    const modelValue = getModelValue(model);
+    const isDoubleClick = clickCount > 1 && pendingSelectionRef.current?.modelId === modelValue;
+    cancelPendingSelection();
+    if (isDoubleClick) {
+      if (!isSavingDefaultModel && defaultModelId !== modelValue) onSetDefaultModel(modelValue);
+      return;
+    }
+    pendingSelectionRef.current = {
+      modelId: modelValue,
+      timer: setTimeout(() => handleSelectModel(model), 250),
+    };
+  };
+
   const handleUseCustom = () => {
+    cancelPendingSelection();
     onChange(searchQuery);
     setOpen(false);
   };
@@ -241,13 +306,15 @@ export function ModelIdSelect({
   };
 
   const handleClearSelection = () => {
+    cancelPendingSelection();
     onChange("");
     setSearchQuery("");
     setOpen(false);
   };
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (disabled) {
+    cancelPendingSelection();
+    if (disabled && newOpen) {
       return;
     }
 
@@ -567,7 +634,29 @@ export function ModelIdSelect({
                   return (
                     <MotionBox
                       key={getModelValue(model)}
-                      onClick={() => handleSelectModel(model)}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={model.name}
+                      onClick={(event: React.MouseEvent<HTMLDivElement>) =>
+                        handleModelClick(model, event.detail)
+                      }
+                      onMouseDown={() => {
+                        // A second press owns the gesture even if released after the deadline.
+                        if (pendingSelectionRef.current) {
+                          clearTimeout(pendingSelectionRef.current.timer);
+                          if (pendingSelectionRef.current.modelId !== getModelValue(model))
+                            cancelPendingSelection();
+                        }
+                      }}
+                      onKeyDown={(event: React.KeyboardEvent<HTMLDivElement>) => {
+                        if (
+                          event.target === event.currentTarget &&
+                          (event.key === "Enter" || event.key === " ")
+                        ) {
+                          event.preventDefault();
+                          handleSelectModel(model);
+                        }
+                      }}
                       style={{
                         padding: itemPadding,
                         cursor: "pointer",
@@ -625,6 +714,14 @@ export function ModelIdSelect({
                               >
                                 {model.name}
                               </Text>
+                              {onSetDefaultModel && defaultModelId === getModelValue(model) ? (
+                                <Text
+                                  size="1"
+                                  color="gray"
+                                >
+                                  {t("models.defaultModel")}
+                                </Text>
+                              ) : null}
                               {showToolCallWarning ? (
                                 <ToolCallWarningBadge
                                   message={t("models.toolCallWarningTooltip")}
@@ -680,6 +777,18 @@ export function ModelIdSelect({
               </Flex>
             )}
           </ScrollArea>
+          {onSetDefaultModel && selectedModel ? (
+            <Box style={{ borderTop: "1px solid var(--gray-5)" }}>
+              <Text
+                as="p"
+                size="1"
+                color="gray"
+                m="2"
+              >
+                {t("models.modelClickHint")}
+              </Text>
+            </Box>
+          ) : null}
         </Box>
       </Popover.Content>
     </Popover.Root>

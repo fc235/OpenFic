@@ -1,16 +1,15 @@
-import { Box, Flex, Text, Tooltip } from "@radix-ui/themes";
+import { Tooltip } from "@radix-ui/themes";
 import type { EditorView } from "@tiptap/pm/view";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
-import { useTranslation } from "react-i18next";
 
 import { ContextMenu } from "./context-menu";
-import { EditorToolbar, type EditorToolbarExtraAction } from "./editor-toolbar";
+import { DocumentEditor } from "./document-editor";
+import { type EditorToolbarExtraAction } from "./editor-toolbar";
 import { ExternalLinkSafetyDialog } from "./external-link-safety-dialog";
 import { createMarkdownEditorExtensions } from "./markdown-editor-config";
-import { TitleInput } from "./title-input";
+import { useEditorSearch } from "./use-editor-search";
 
 export interface MarkdownEditorProps {
   title: string;
@@ -89,7 +88,9 @@ export function MarkdownEditor({
   scrollTop = 0,
   onScrollPositionChange,
 }: MarkdownEditorProps) {
-  const { t } = useTranslation();
+  const search = useEditorSearch(isLocked, onLockedAction);
+  const saveActionRef = useRef({ isLocked, onLockedAction, onSave });
+  saveActionRef.current = { isLocked, onLockedAction, onSave };
   const contentSyncedRef = useRef(content);
   const editorContentRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -154,12 +155,15 @@ export function MarkdownEditor({
     extensions: createMarkdownEditorExtensions({
       placeholder: placeholder ?? "",
       shortcuts: {
+        onFind: search.openFind,
+        onReplace: search.openReplace,
         onSave: () => {
-          if (isLocked) {
-            onLockedAction?.();
+          const action = saveActionRef.current;
+          if (action.isLocked) {
+            action.onLockedAction?.();
             return;
           }
-          onSave();
+          action.onSave();
         },
       },
     }),
@@ -273,128 +277,61 @@ export function MarkdownEditor({
     };
   }, [editor, onScrollPositionChange]);
 
-  useHotkeys(
-    "mod+s",
-    (event) => {
-      event.preventDefault();
-      if (isLocked) {
-        onLockedAction?.();
-        return;
-      }
-      onSave();
-    },
-    { enableOnFormTags: true },
-  );
-
   const handleTitleBlur = useCallback(() => {
     if (hasChanges && !isLocked) {
       onSave();
     }
   }, [hasChanges, isLocked, onSave]);
 
-  const saveStatus = isSaving ? "saving" : hasChanges ? "unsaved" : "saved";
   const wordCount = externalWordCount ?? editor?.storage.characterCount?.characters() ?? 0;
 
   return (
-    <Box
-      style={{
-        height: "100%",
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
+    <DocumentEditor
+      toolbar={{
+        editor,
+        onSave,
+        isSaving,
+        hasChanges,
+        isAgentLocked: isLocked,
+        onLockedAction,
+        extraActions: extraToolbarActions,
+        toolbarPrefix,
+        showMarkdownTools: true,
       }}
+      search={search}
+      title={{
+        value: title,
+        onChange: onTitleChange,
+        onBlur: handleTitleBlur,
+        disabled: isLocked,
+        onDisabledClick: onLockedAction,
+        placeholder: titlePlaceholder,
+      }}
+      scrollProps={{ ref: scrollContainerRef, onScroll: handleEditorScroll }}
+      contentProps={{ className: "markdown-editor-content", style: { maxWidth, margin: "0 auto" } }}
+      bodyProps={{
+        ref: editorContentRef,
+        onMouseOver: handleEditorLinkMouseOver,
+        onMouseOut: handleEditorLinkMouseOut,
+      }}
+      wordCount={wordCount}
+      wordCountLabel={wordCountLabel}
+      saveStatusText={saveStatusText}
+      banner={lockedBanner}
     >
-      {lockedBanner}
-
-      <EditorToolbar
-        editor={editor}
-        onSave={onSave}
-        isSaving={isSaving}
-        hasChanges={hasChanges}
-        isAgentLocked={isLocked}
-        onLockedAction={onLockedAction}
-        extraActions={extraToolbarActions}
-        toolbarPrefix={toolbarPrefix}
-        showMarkdownTools
-      />
-
-      <Box
-        ref={scrollContainerRef}
-        style={{ flex: 1, minHeight: 0, overflow: "auto" }}
-        className="tiptap-editor-wrapper"
-        onScroll={handleEditorScroll}
-      >
-        <Box
-          style={{
-            maxWidth,
-            margin: "0 auto",
-          }}
-          className="markdown-editor-content"
-        >
-          <TitleInput
-            value={title}
-            onChange={onTitleChange}
-            onBlur={handleTitleBlur}
-            disabled={isLocked}
-            onDisabledClick={onLockedAction}
-            placeholder={titlePlaceholder}
-          />
-          <Box style={{ borderBottom: "1px solid var(--gray-a4)" }} />
-          <Box
-            py="5"
-            ref={editorContentRef}
-            onMouseOver={handleEditorLinkMouseOver}
-            onMouseOut={handleEditorLinkMouseOut}
-          >
-            <EditorContent
-              editor={editor}
-              className="tiptap-editor"
-            />
-          </Box>
-        </Box>
-      </Box>
-
       {!isLocked && (
         <ContextMenu
           editor={editor}
           containerRef={editorContentRef}
         />
       )}
-
       <ExternalLinkSafetyDialog
         isOpen={pendingExternalLink !== null}
         url={pendingExternalLink ?? ""}
         onClose={() => setPendingExternalLink(null)}
         onConfirm={handleConfirmExternalLink}
       />
-
       <EditorLinkTooltip link={hoveredEditorLink} />
-
-      <Flex
-        px="6"
-        py="3"
-        justify="between"
-        align="center"
-        style={{
-          borderTop: "1px solid var(--gray-a4)",
-          background: "var(--gray-a2)",
-        }}
-      >
-        <Text
-          size="1"
-          color="gray"
-        >
-          {wordCount} {wordCountLabel ?? t("writing.words")}
-        </Text>
-        <Text
-          size="1"
-          color="gray"
-        >
-          {saveStatus === "saving" && (saveStatusText?.saving ?? t("writing.saving"))}
-          {saveStatus === "saved" && (saveStatusText?.saved ?? t("writing.saved"))}
-          {saveStatus === "unsaved" && (saveStatusText?.unsaved ?? t("writing.unsavedChanges"))}
-        </Text>
-      </Flex>
-    </Box>
+    </DocumentEditor>
   );
 }

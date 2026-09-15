@@ -51,6 +51,7 @@ import { captureException } from "./telemetry.js";
 import { notifySessionCompleted } from "./session-notifications.js";
 import type { BackendProcessHandle } from "./process.js";
 import type { DesktopConfig, DesktopInstance } from "../shared/config.js";
+import type { DesktopPreferencesState } from "../shared/desktop-preferences.js";
 
 const PROJECT_HOME_URL = "https://github.com/fc235/OpenFic";
 const BUG_REPORT_URL = `${PROJECT_HOME_URL}/issues/new?template=bug-report.yml`;
@@ -176,6 +177,8 @@ function getNextActiveInstanceId(config: DesktopConfig, remainingInstances: Desk
 }
 
 export interface IpcContext {
+  getDesktopPreferencesState: () => Promise<DesktopPreferencesState>;
+  updateDesktopPreferences: (patch: unknown) => Promise<DesktopPreferencesState>;
   shellWindow: () => BrowserWindow | null;
   setBackend: (handle: BackendProcessHandle) => void;
   setBackendBaseUrl: (url: string) => void;
@@ -225,6 +228,24 @@ async function clearInstanceSession(instanceId: string): Promise<void> {
 }
 
 export function registerIpc(context: IpcContext): void {
+  const requireDesktopSender = (event: Electron.IpcMainInvokeEvent) => {
+    const window = context.shellWindow();
+    if (!window || window.isDestroyed() || event.sender.isDestroyed() ||
+      (event.sender !== window.webContents && event.sender.hostWebContents !== window.webContents)) {
+      throw new Error("此操作仅可通过桌面窗口执行");
+    }
+  };
+  ipcMain.handle(IpcChannels.getDesktopPreferences, (event) => {
+    requireDesktopSender(event);
+    return context.getDesktopPreferencesState();
+  });
+  ipcMain.handle(IpcChannels.saveDesktopPreferences, async (event, patch: unknown) => {
+    requireDesktopSender(event);
+    if (patch && typeof patch === "object" && "lanEnabled" in patch) {
+      if (!(await context.getDesktopPreferencesState()).localBackend) throw new Error("局域网访问仅适用于本地实例");
+    }
+    return context.updateDesktopPreferences(patch);
+  });
   let pendingConfigMutation: Promise<void> = Promise.resolve();
 
   function enqueueConfigMutation<T>(operation: () => Promise<T>): Promise<T> {

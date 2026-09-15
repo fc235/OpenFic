@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import React from "react";
+      import { createRoot } from "react-dom/client";
+      import { Theme } from "@radix-ui/themes";
+      import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+      import "@radix-ui/themes/styles.css";
+      import { MemoryRouter, Routes, Route } from "react-router";
+      import { MarkdownEditor } from "../src/components/markdown-editor";
+      import { ChapterEditor } from "../src/features/writing/components/chapter-editor";
+      import { NoteEditor } from "../src/features/writing/components/note-editor";
+      import { AgentInput } from "../src/features/assistant/components/agent/agent-input";
+      import { Toaster } from "../src/components/toaster";
+      import { ModelsSettings } from "../src/features/settings/components/models-settings";
+      import { ProjectCard } from "../src/features/projects/components/project-card";
+      import { ProjectListItem } from "../src/features/projects/components/project-list-item";
+      import "../src/i18n";
+      import "../src/styles/overrides/tiptap.css";
+      const h = React.createElement;
+      function App() {
+        const [content, setContent] = React.useState(
+          "# 标题\n\n**星光**照耀，星光依旧。\n\n- 第一项\n- 第二项",
+        );
+        const [modelId, setModelId] = React.useState("a");
+        const [title, setTitle] = React.useState("测试笔记");
+        const [locked, setLocked] = React.useState(false);
+        const [entityId, setEntityId] = React.useState("test");
+        window.setLocked = setLocked;
+        window.switchEntity = setEntityId;
+        window.content = content;
+        const project = {
+          id: "test",
+          title: "测试项目",
+          wordCount: 10,
+          chapterCount: 1,
+          updatedAt: new Date().toISOString(),
+          coverUrl: "",
+        };
+        if (location.search.includes("composer"))
+          return h(
+            React.Fragment,
+            {},
+            h(Toaster, { appearance: "light" }),
+            h(AgentInput, {
+              projectId: "",
+              value: content,
+              onChange: setContent,
+              attachments: [],
+              modelId,
+              models: ["a", "b"].map((id) => ({ id, value: id, name: `模型${id}` })),
+              agentOptions: [],
+              isSending: false,
+              disabled: false,
+              isModelsLoading: false,
+              modelsError: false,
+              onAttachmentsChange: () => {},
+              onSend: () => {},
+              onAbort: () => {},
+              onModelChange: setModelId,
+              onGoToSettings: () => {},
+              onUploadAttachments: async () => {},
+            }),
+          );
+        if (location.search.includes("settings"))
+          return h(ModelsSettings, {
+            isAgentSettingsLocked: locked,
+            isAgentSettingsLockLoading: false,
+          });
+        if (location.search.includes("chapter"))
+          return h(
+            "div",
+            { style: { height: "95vh" } },
+            h(ChapterEditor, { chapterId: entityId, isAgentLocked: locked }),
+          );
+        if (location.search.includes("note"))
+          return h(
+            "div",
+            { style: { height: "95vh" } },
+            h(NoteEditor, { noteId: entityId, projectId: "p", isAgentLocked: locked }),
+          );
+        if (location.search.includes("project"))
+          return h(
+            MemoryRouter,
+            {},
+            h(
+              Routes,
+              {},
+              h(Route, {
+                path: "/",
+                element: h(
+                  "div",
+                  { style: { padding: 50, width: 360 } },
+                  h(location.search.includes("list") ? ProjectListItem : ProjectCard, {
+                    project,
+                    onEdit: () => (window.edited = true),
+                    onDelete: () => (window.deleted = true),
+                  }),
+                ),
+              }),
+              h(Route, { path: "/projects/test", element: h("p", {}, "已打开项目") }),
+            ),
+          );
+        return h(
+          "div",
+          { style: { height: "95vh" } },
+          h(MarkdownEditor, {
+            title,
+            onTitleChange: setTitle,
+            content,
+            onContentChange: setContent,
+            onSave: () => (window.saved = content),
+            hasChanges: true,
+          }),
+        );
+      }
+      createRoot(document.getElementById("root")).render(
+        h(
+          QueryClientProvider,
+          { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+          h(Theme, {}, h(App)),
+        ),
+      );
+    </script>
+  </body>
+</html>

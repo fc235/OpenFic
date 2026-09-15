@@ -8,7 +8,7 @@ import { Box, Card, Flex, Text, IconButton, Tooltip } from "@radix-ui/themes";
 import { Edit2, Trash2, BookOpen } from "lucide-react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router";
+import { Link } from "react-router";
 
 import type { Project } from "@/lib/project.types";
 import { formatRelativeTime } from "@/lib/time-utils";
@@ -23,22 +23,21 @@ interface ProjectListItemProps {
 
 export function ProjectListItem({ project, onEdit, onDelete }: ProjectListItemProps) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-
-  const handleClick = () => {
-    navigate(`/projects/${project.id}`);
-  };
-
   return (
     <MotionCard
       size="2"
-      style={{ cursor: "pointer" }}
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      whileHover={{ x: 4 }}
+      style={{ cursor: "pointer", position: "relative" }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      whileHover={{ backgroundColor: "var(--gray-a3)" }}
       transition={{ duration: 0.2 }}
-      onClick={handleClick}
     >
+      <Link
+        to={`/projects/${project.id}`}
+        aria-label={project.title}
+        draggable={false}
+        style={{ position: "absolute", inset: 0, borderRadius: "inherit", zIndex: 1 }}
+      />
       <Flex
         align="center"
         gap="4"
@@ -130,6 +129,8 @@ export function ProjectListItem({ project, onEdit, onDelete }: ProjectListItemPr
         >
           <Tooltip content={t("common.edit")}>
             <IconButton
+              style={{ position: "relative", zIndex: 2 }}
+              aria-label={t("common.edit")}
               size="2"
               variant="ghost"
               onClick={(e) => {
@@ -142,6 +143,8 @@ export function ProjectListItem({ project, onEdit, onDelete }: ProjectListItemPr
           </Tooltip>
           <Tooltip content={t("common.delete")}>
             <IconButton
+              style={{ position: "relative", zIndex: 2 }}
+              aria-label={t("common.delete")}
               size="2"
               variant="ghost"
               color="red"

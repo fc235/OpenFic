@@ -58,6 +58,8 @@ window.addEventListener(
 );
 
 contextBridge.exposeInMainWorld("openficDesktopHost", {
+  getDesktopPreferences: () => ipcRenderer.invoke("desktop:preferences:get"),
+  saveDesktopPreferences: (patch: unknown) => ipcRenderer.invoke("desktop:preferences:save", patch),
   notifySessionCompleted: (payload: unknown): Promise<boolean> =>
     ipcRenderer.invoke("notification:session-completed", payload),
   publishAppearance: (payload: unknown): void => {

@@ -234,5 +234,14 @@
         "delete-old": "正在删除原数据目录…"
       }
     }
+  },
+  "close": {
+    "title": "关闭 OpenFic",
+    "description": "请选择关闭方式",
+    "frontend": "仅退出前端",
+    "frontendDescription": "关闭窗口，保留本地后端、运行中的任务和已启用的局域网访问。",
+    "quit": "完全退出",
+    "quitDescription": "关闭窗口并停止本地后端，运行中的任务和局域网访问也将停止。",
+    "remember": "记住我的选择"
   }
 }

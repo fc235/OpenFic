@@ -7,6 +7,20 @@ export interface DesktopAppearancePayload {
   codeFontFamily?: string;
 }
 
+export interface DesktopPreferences {
+  closeBehavior: "ask" | "quit" | "frontend";
+  lanEnabled: boolean;
+  backendRunning: boolean;
+  localBackend: boolean;
+  lanPending: boolean;
+  error?: string;
+  addresses: Array<{ name: string; url: string }>;
+}
+
+export type DesktopPreferencesPatch = Partial<
+  Pick<DesktopPreferences, "closeBehavior" | "lanEnabled">
+>;
+
 export interface SocketDiagnosticPayload {
   event:
     | "connect-start"
@@ -27,6 +41,8 @@ export interface SocketDiagnosticPayload {
 declare global {
   interface Window {
     openficDesktopHost?: {
+      getDesktopPreferences?: () => Promise<DesktopPreferences>;
+      saveDesktopPreferences?: (patch: DesktopPreferencesPatch) => Promise<DesktopPreferences>;
       notifySessionCompleted?: (payload: {
         sessionId: string;
         completionId: string;

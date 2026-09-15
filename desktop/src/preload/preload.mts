@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webFrame } from "electron";
 import {
   IpcChannels,
+  type CloseDialogResponse,
   type BackupDataRequest,
   type CheckPathOverlapRequest,
   type DataInfo,
@@ -75,6 +76,15 @@ ipcRenderer.on(IpcChannels.zoomFactorChanged, (_event, zoomFactor: unknown) => {
 });
 
 const desktopApi = {
+  resolveCloseDialog: (response: CloseDialogResponse): void => ipcRenderer.send(IpcChannels.closeDialogResolve, response),
+  onCloseDialogRequested: (handler: (requestId: string) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, requestId: unknown) => {
+      if (typeof requestId === "string") handler(requestId);
+    };
+    ipcRenderer.on(IpcChannels.closeDialogRequested, listener);
+    ipcRenderer.send(IpcChannels.closeDialogReady);
+    return () => ipcRenderer.off(IpcChannels.closeDialogRequested, listener);
+  },
   getConfig: (): Promise<DesktopConfig | null> => ipcRenderer.invoke(IpcChannels.getConfig),
   saveConfig: (config: DesktopConfig): Promise<void> =>
     ipcRenderer.invoke(IpcChannels.saveConfig, { config } satisfies SaveConfigRequest),

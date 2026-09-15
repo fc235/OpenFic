@@ -19,6 +19,8 @@ import {
 } from "./openfic-commands.js";
 import type { StartupProgressTracker, ProgressUpdate } from "../startup-progress.js";
 import { appendLog, createLogStream } from "../logging.js";
+import { matchesOpenFicVersion, toPythonPackageVersion } from "./package-version.js";
+import { readDesktopPreferences } from "../desktop-preferences.js";
 
 export type OpenFicRuntimeStep = "create-venv" | "install-uv" | "install-openfic";
 
@@ -118,7 +120,7 @@ async function probePypiIndex(indexUrl: string, expectedVersion: string): Promis
     }
     const packageIndex = await response.text();
     const elapsedMs = performance.now() - startedAt;
-    if (!packageIndex.includes(`openfic-${expectedVersion}`)) {
+    if (!packageIndex.includes(`openfic-${toPythonPackageVersion(expectedVersion)}`)) {
       appendLog("runtime", `Python 包索引未找到 OpenFic ${expectedVersion}：${indexUrl}`);
       return null;
     }
@@ -319,7 +321,7 @@ export async function inspectOpenFicRuntime(
 
   const versionCommand = createOpenFicVersionCommand(venvPythonPath);
   const installedVersion = await readOutput(versionCommand.command, versionCommand.args, runtimeDir);
-  if (installedVersion !== expectedVersion) {
+  if (!matchesOpenFicVersion(installedVersion, expectedVersion)) {
     return {
       complete: false,
       message: installedVersion ? "OpenFic 后端版本不匹配" : "未找到 OpenFic 后端",
@@ -386,7 +388,7 @@ export async function ensureOpenFicRuntime(
   const openFicCliPath = resolveOpenFicCliPath(venvPythonPath);
   const openFicCliIsUsable =
     (await pathExists(openFicCliPath)) && (await succeeds(openFicCliPath, ["--help"], runtimeDir));
-  if (installedVersion !== expectedVersion || !openFicCliIsUsable) {
+  if (!matchesOpenFicVersion(installedVersion, expectedVersion) || !openFicCliIsUsable) {
     appendLog(
       "runtime",
       installedVersion ? `OpenFic 后端需要更新：${installedVersion} -> ${expectedVersion}` : "OpenFic 后端尚未安装",
@@ -395,7 +397,7 @@ export async function ensureOpenFicRuntime(
     const installCommand = createOpenFicInstallCommand(
       venvPythonPath,
       expectedVersion,
-      installedVersion === expectedVersion && !openFicCliIsUsable,
+      matchesOpenFicVersion(installedVersion, expectedVersion) && !openFicCliIsUsable,
       bundledWheelPath ?? undefined,
     );
     if (bundledWheelPath) {
@@ -589,6 +591,7 @@ export async function startLocalOpenFicBackend(
   startupProgress?: StartupProgressTracker,
   signal?: AbortSignal,
   dataDir?: string,
+  preferredPort?: number,
 ): Promise<{ handle: BackendProcessHandle; maintenanceError: string | null }> {
   throwIfAborted(signal);
   startupProgress?.begin({
@@ -597,9 +600,10 @@ export async function startLocalOpenFicBackend(
     message: "正在分配本地服务端口",
     progress: 0.6,
   });
-  const port = await findFreePort();
+  const port = preferredPort ?? await findFreePort();
+  const bindHost = (await readDesktopPreferences()).lanEnabled ? "0.0.0.0" : "127.0.0.1";
   throwIfAborted(signal);
-  const command = createOpenFicServeCommand(venvPythonPath, port);
+  const command = createOpenFicServeCommand(venvPythonPath, port, bindHost);
   const proxyEnvironment = await getSystemProxyEnvironment("https://pypi.org/");
   throwIfAborted(signal);
   let latestMilestone: ProgressUpdate | null = null;
@@ -608,6 +612,7 @@ export async function startLocalOpenFicBackend(
     command: command.command,
     args: command.args,
     port,
+    bindHost,
     dataDir,
     environment: proxyEnvironment,
     onOutputLine: (line) => {
@@ -633,7 +638,7 @@ export async function startLocalOpenFicBackend(
       message: "服务已响应，正在验证版本",
       progress: 0.98,
     });
-    if (health.version !== expectedVersion) {
+    if (!matchesOpenFicVersion(health.version, expectedVersion)) {
       abortStartingBackendProcess(handle);
       throw new Error(`本地后端版本不匹配：期望 ${expectedVersion}，实际 ${health.version ?? "未知"}`);
     }

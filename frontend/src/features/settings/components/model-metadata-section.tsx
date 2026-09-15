@@ -14,33 +14,6 @@ interface ModelMetadataSectionProps<T extends FieldValues> {
   disabled?: boolean;
 }
 
-const PRICE_FIELDS = [
-  {
-    name: "inputPrice",
-    labelKey: "inputPrice",
-    leftUnit: "$",
-    rightUnit: "/M tokens",
-  },
-  {
-    name: "outputPrice",
-    labelKey: "outputPrice",
-    leftUnit: "$",
-    rightUnit: "/M tokens",
-  },
-  {
-    name: "cacheReadPrice",
-    labelKey: "cacheReadPrice",
-    leftUnit: "$",
-    rightUnit: "/M tokens",
-  },
-  {
-    name: "cacheWritePrice",
-    labelKey: "cacheWritePrice",
-    leftUnit: "$",
-    rightUnit: "/M tokens",
-  },
-] as const;
-
 function MetadataNumberField<T extends FieldValues>({
   control,
   name,
@@ -147,7 +120,6 @@ export function ModelMetadataSection<T extends FieldValues>({
                   <Text size="1">{t("models.metadataTooltipBasic")}</Text>
                   <Text size="1">{t("models.metadataTooltipDefault")}</Text>
                   <Text size="1">{t("models.metadataTooltipContext")}</Text>
-                  <Text size="1">{t("models.metadataTooltipPricing")}</Text>
                 </Flex>
               }
             >
@@ -202,18 +174,6 @@ export function ModelMetadataSection<T extends FieldValues>({
                   max={2000000}
                   step={1}
                 />
-                {PRICE_FIELDS.map((field) => (
-                  <MetadataNumberField
-                    key={field.name}
-                    control={control}
-                    name={field.name as Path<T>}
-                    label={t(`models.${field.labelKey}`)}
-                    inputId={`${field.name}-${modelId || "new"}`}
-                    leftUnit={field.leftUnit}
-                    rightUnit={field.rightUnit}
-                    disabled={disabled}
-                  />
-                ))}
               </Grid>
             </Box>
           </motion.div>

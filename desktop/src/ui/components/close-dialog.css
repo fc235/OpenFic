@@ -1,0 +1,39 @@
+.desktop-close-dialog {
+  box-sizing: border-box;
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(460px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  padding: 24px;
+  border: 1px solid var(--gray-a5);
+  border-radius: var(--radius-4, 12px);
+  background: var(--color-panel-solid);
+  color: var(--gray-12);
+  box-shadow: 0 20px 60px var(--black-a6);
+  font-family: var(--default-font-family, inherit);
+  -webkit-app-region: no-drag;
+}
+.desktop-close-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+.desktop-close-dialog h2 { margin: 0; font-size: 20px; font-weight: 600; }
+.desktop-close-dialog > p { margin: 8px 0 20px; color: var(--gray-11); font-size: 14px; }
+.desktop-close-options { display: grid; gap: 10px; }
+.desktop-close-option {
+  display: flex; align-items: center; gap: 12px; padding: 14px;
+  border: 1px solid var(--gray-a5); border-radius: var(--radius-3, 8px); cursor: pointer;
+}
+.desktop-close-option[data-selected="true"] { background: var(--gray-a3); border-color: var(--gray-9); }
+.desktop-close-option:focus-within { outline: 2px solid var(--gray-8); outline-offset: 2px; }
+.desktop-close-option input, .desktop-close-remember input { accent-color: var(--gray-12); }
+.desktop-close-option input:focus-visible { outline: none; }
+.desktop-close-option svg { flex-shrink: 0; color: var(--gray-11); }
+.desktop-close-option span { display: grid; gap: 5px; }
+.desktop-close-option strong { font-size: 14px; font-weight: 600; }
+.desktop-close-option small { font-size: 12px; line-height: 1.6; color: var(--gray-11); }
+.desktop-close-remember { display: flex; align-items: center; gap: 8px; margin-top: 18px; color: var(--gray-11); font-size: 13px; cursor: pointer; }
+.desktop-close-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.desktop-close-actions button { border: 1px solid var(--gray-a5); border-radius: var(--radius-2, 6px); background: var(--gray-a3); color: var(--gray-12); padding: 8px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+.desktop-close-actions button:hover { background: var(--gray-a4); }
+.desktop-close-actions .desktop-close-confirm { background: var(--gray-12); color: var(--gray-1); border-color: transparent; }
+.desktop-close-actions .desktop-close-confirm:hover { background: var(--gray-11); }
+.desktop-close-actions button:focus-visible { outline: 2px solid var(--gray-8); outline-offset: 2px; }

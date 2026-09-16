@@ -49,6 +49,7 @@ _PERMISSION_METADATA_BY_TOOL_NAME = {
     "read_character": ToolPermissionMetadata("read_character", "allow"),
     "read_shared_characters": ToolPermissionMetadata("read_shared_characters", "allow"),
     "read_shared_world_entries": ToolPermissionMetadata("read_shared_world_entries", "allow"),
+    "read_shared_chapters": ToolPermissionMetadata("read_shared_chapters", "allow"),
     "read_note": ToolPermissionMetadata("read_note", "allow"),
     "read_range_summaries": ToolPermissionMetadata("read_range_summaries", "allow"),
     "read_world_entry": ToolPermissionMetadata("read_world_entry", "allow"),

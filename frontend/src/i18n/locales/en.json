@@ -7,6 +7,10 @@
     "characters": "You are editing this project's characters. Shared background material can be linked separately.",
     "worldInfo": "You are editing this project's world settings. Shared settings can be linked separately.",
     "manageShared": "Shared material",
+    "referenceChapters": "Reference manuscript",
+    "referenceChaptersState": "Source projects · Latest manuscript · Read-only",
+    "previewChapters": "View chapters",
+    "previewChaptersTitle": "{{name}} · Reference manuscript (read-only)",
     "sharingCounts": "References {{sources}} projects · Referenced by {{targets}} projects",
     "sharedHelp": "Select source projects to reference. Shared material is read-only here; switch to its source to edit it. Source edits affect referencing projects. Local material stays separate, and unlinking does not delete the source. References include only the source's own material, not its links.",
     "preview": "View material",
@@ -941,6 +945,10 @@
       "readSharedWorldEntries": {
         "name": "Read Shared World Settings",
         "description": "Read world settings from explicitly referenced projects. Sources are read-only."
+      },
+      "readSharedChapters": {
+        "name": "Read Reference Manuscript",
+        "description": "Read current complete chapters from linked projects only when explicitly asked to reference their writing. Sources are read-only."
       },
       "activateSkill": {
         "name": "Activate Skill",
@@ -2194,6 +2202,7 @@
       "interrupted": "The tool call stopped because the connection was interrupted",
       "errorReason": "Reason: {{reason}}",
       "readChapter": "Read chapter",
+      "readSharedChapters": "Read reference manuscript",
       "writeChapter": "Write chapter",
       "editChapter": "Edit chapter",
       "deleteChapter": "Delete chapter",

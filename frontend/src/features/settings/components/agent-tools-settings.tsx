@@ -139,6 +139,10 @@ const TOOL_DISPLAY_KEYS: Record<string, { name: string; description: string }> =
     name: "settings.agentTool.readSharedWorldEntries.name",
     description: "settings.agentTool.readSharedWorldEntries.description",
   },
+  read_shared_chapters: {
+    name: "settings.agentTool.readSharedChapters.name",
+    description: "settings.agentTool.readSharedChapters.description",
+  },
   create_character: {
     name: "settings.agentTool.createCharacter.name",
     description: "settings.agentTool.createCharacter.description",

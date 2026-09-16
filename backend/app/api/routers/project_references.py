@@ -37,8 +37,8 @@ async def set_references(project_id: str, resource: service.Resource, data: Refe
 
 
 @router.get("/{project_id}/references/{resource}/{source_id}")
-async def get_material(project_id: str, resource: service.Resource, source_id: str, session: Session, brief: bool = False, item_id: str | None = None):
+async def get_material(project_id: str, resource: service.Resource, source_id: str, session: Session, brief: bool = False, item_id: str | None = None, volume_id: str | None = None):
     try:
-        return await service.read_shared_material(session, project_id, source_id, resource, brief=brief, item_id=item_id)
+        return await service.read_shared_material(session, project_id, source_id, resource, brief=brief, item_id=item_id, volume_id=volume_id)
     except NotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc

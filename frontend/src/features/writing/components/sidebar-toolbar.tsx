@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 
 import type { ChapterListItem } from "@/lib/chapter.types";
+import { ProjectReferences } from "@/components/project-references";
 
 import { useWritingStore } from "../store/use-writing-store";
 import { ChapterSearchPopover } from "./chapter-search-popover";
@@ -357,6 +358,8 @@ export function SidebarToolbar({
                     <Upload size={16} />
                   </IconButton>
                 </Tooltip>
+                <ProjectReferences key={projectId} projectId={projectId} resource="chapters"
+                  compact disabled={isAgentLocked} />
                 {onOpenSummary && (
                   <Tooltip content={t("summary.openPanel")}>
                     <IconButton

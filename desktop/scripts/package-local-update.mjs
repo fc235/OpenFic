@@ -44,17 +44,5 @@ await run([
   "never",
   ...versionConfig,
 ]);
-await run([
-  "exec",
-  "electron-builder",
-  "--config",
-  "electron-builder.local-update.yml",
-  "--win",
-  "nsis",
-  "--arm64",
-  "--publish",
-  "never",
-  ...versionConfig,
-]);
 await runNode(["scripts/normalize-artifact-names.mjs"]);
 await runNode(["scripts/prepare-windows-update.mjs"]);

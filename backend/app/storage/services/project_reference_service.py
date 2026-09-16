@@ -13,7 +13,7 @@ from app.storage.models.character import Character
 from app.storage.models.world_info_entry import WorldInfoEntry
 from app.storage.repos import character_repo, project_repo, world_info_repo, world_info_entry_repo
 
-Resource = Literal["characters", "worldInfo"]
+Resource = Literal["characters", "worldInfo", "chapters"]
 
 
 async def delete_project_links(session: AsyncSession, project_id: str) -> None:
@@ -68,7 +68,11 @@ async def resolve_read_project(session: AsyncSession, project_id: str, source_id
     return source_id
 
 
-async def read_shared_material(session: AsyncSession, project_id: str, source_id: str, resource: Resource, *, brief: bool = False, item_id: str | None = None):
+async def read_shared_material(session: AsyncSession, project_id: str, source_id: str, resource: Resource, *, brief: bool = False, item_id: str | None = None, volume_id: str | None = None):
+    if resource == "chapters":
+        from app.storage.services.project_chapter_reference_service import read_chapters
+
+        return await read_chapters(session, project_id, source_id, item_id=item_id, volume_id=volume_id)
     await resolve_read_project(session, project_id, source_id, resource)
     if brief or item_id is not None:
         if resource == "characters":

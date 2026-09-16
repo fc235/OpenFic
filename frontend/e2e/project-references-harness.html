@@ -7,8 +7,14 @@ import { Theme } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ProjectScopeBanner } from "../src/components/project-scope-banner";
+import { SidebarToolbar } from "../src/features/writing/components/sidebar-toolbar";
 import "../src/i18n";
 const h = React.createElement;
+const chapters = new URLSearchParams(location.search).get("resource") === "chapters";
+const noop = () => {};
 createRoot(document.getElementById("root")).render(h(QueryClientProvider, {client:new QueryClient({defaultOptions:{queries:{retry:false}}})},
-  h(Theme, {}, h(ProjectScopeBanner, {projectId:"a", projectTitle:"长篇系列第一部：星海归途", resource:"characters"}))));
+  h(Theme, {}, chapters ? h("div", {style:{width:"300px",maxWidth:"100%"}}, h(SidebarToolbar, {
+    projectId:"a", chapters:[], onChapterSelect:noop, onCreateChapter:noop, onCreateVolume:noop,
+    onImport:noop, onExport:noop, onSaveOrder:noop, onCancelOrder:noop,
+  })) : h(ProjectScopeBanner, {projectId:"a", projectTitle:"长篇系列第一部：星海归途", resource:"characters"}))));
 </script></body></html>

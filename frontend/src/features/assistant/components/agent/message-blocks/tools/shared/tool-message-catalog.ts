@@ -5,6 +5,7 @@ export const REGISTERED_TOOL_NAMES = [
   "recycle_subagent",
   "ask_user",
   "read_chapter",
+  "read_shared_chapters",
   "write_chapter",
   "edit_chapter",
   "delete_chapter",
@@ -104,6 +105,13 @@ export const TOOL_DESCRIPTOR_META = {
   },
   read_chapter: {
     toolName: "read_chapter",
+    group: "chapter",
+    tag: "read",
+    isExplore: true,
+    contentMode: "hidden",
+  },
+  read_shared_chapters: {
+    toolName: "read_shared_chapters",
     group: "chapter",
     tag: "read",
     isExplore: true,

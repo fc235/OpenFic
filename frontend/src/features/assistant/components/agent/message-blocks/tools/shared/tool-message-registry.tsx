@@ -184,6 +184,23 @@ const TOOL_REGISTRY = {
     getTitle: () => i18n.t("assistant.tools.readChapter"),
     getDetail: (message) => getReadChapterDetail(message),
   },
+  read_shared_chapters: {
+    toolName: "read_shared_chapters",
+    group: "chapter",
+    tag: "read",
+    isExplore: true,
+    contentMode: "hidden",
+    icon: BookOpen,
+    getTitle: () => i18n.t("assistant.tools.readSharedChapters"),
+    getDetail: (message) => {
+      const data = getToolResultData(message);
+      if (!isRecord(data)) return undefined;
+      const source = asString(data.source_project_title);
+      const chapter = Array.isArray(data.items) && data.items.length === 1 && isRecord(data.items[0])
+        ? data.items[0] : undefined;
+      return [source, asString(chapter?.volume_title), asString(chapter?.name)].filter(Boolean).join(" / ") || undefined;
+    },
+  },
   write_chapter: {
     toolName: "write_chapter",
     group: "chapter",

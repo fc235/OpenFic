@@ -5,7 +5,7 @@ import path from "node:path";
 const outputDirectory = path.resolve(process.argv[2] ?? "dist-electron");
 const packageJson = JSON.parse(await readFile(path.resolve("package.json"), "utf8"));
 const version = process.env.OPENFIC_UPDATE_VERSION ?? packageJson.version;
-const architectures = ["x86_64", "aarch64"];
+const architectures = ["x86_64"];
 
 async function exists(filePath) {
   try {
@@ -56,7 +56,7 @@ function createUpdateInfo(file, compatibilityArchitecture) {
   ].join("\n");
 }
 
-const legacyArchitectures = ["x64", "arm64"];
+const legacyArchitectures = ["x64"];
 const legacyLatestYml = [
   `version: ${version}`,
   "files:",
@@ -72,7 +72,7 @@ const legacyLatestYml = [
 ].join("\n");
 
 await Promise.all([
-  // Older clients select Windows assets by x64/arm64 substring; query aliases retain that compatibility.
+  // Older clients select Windows assets by x64 substring; query aliases retain that compatibility.
   writeFile(path.join(outputDirectory, "latest.yml"), legacyLatestYml, "utf8"),
   ...files.map((file) => writeFile(path.join(outputDirectory, `latest-win-${file.architecture}.yml`), createUpdateInfo(file), "utf8")),
 ]);

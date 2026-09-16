@@ -7,6 +7,10 @@
     "characters": "当前编辑的是本项目角色。可另行引用其他项目的共享基础设定。",
     "worldInfo": "当前编辑的是本项目世界书。可另行引用其他项目的共享设定。",
     "manageShared": "共享资料",
+    "referenceChapters": "参考正文",
+    "referenceChaptersState": "来源项目 · 最新正文 · 只读",
+    "previewChapters": "查看正文",
+    "previewChaptersTitle": "{{name}} · 参考正文（只读）",
     "sharingCounts": "引用 {{sources}} 个项目 · 本地资料供 {{targets}} 个项目引用",
     "sharedHelp": "勾选要引用的来源项目。共享资料在此只读，请切换到来源项目修改；修改会同步影响引用方。本项目资料独立保留，取消引用不会删除来源。仅引用来源的本地资料，不递归读取其引用。",
     "preview": "查看资料",
@@ -941,6 +945,10 @@
       "readSharedWorldEntries": {
         "name": "读取共享世界书",
         "description": "按需读取当前项目显式引用的世界书设定，来源只读。"
+      },
+      "readSharedChapters": {
+        "name": "读取参考正文",
+        "description": "仅在明确要求参考写法时，按需读取绑定项目的最新完整章节，来源只读。"
       },
       "activateSkill": {
         "name": "启用技能",
@@ -2257,6 +2265,7 @@
       "interrupted": "工具调用因连接中断而停止",
       "errorReason": "原因：{{reason}}",
       "readChapter": "读取章节",
+      "readSharedChapters": "读取参考正文",
       "writeChapter": "写入章节",
       "editChapter": "编辑章节",
       "deleteChapter": "删除章节",

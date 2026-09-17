@@ -52,6 +52,9 @@
             h(Route, { path: "/projects/probe", element: h("p", {}, "项目已打开") }),
           ),
           h(SettingsDialog, {
+            route: new URLSearchParams(window.location.search).has("category")
+              ? { category: new URLSearchParams(window.location.search).get("category") }
+              : undefined,
             open,
             onOpenChange: setOpen,
             themeMode: "light",

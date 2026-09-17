@@ -5,14 +5,11 @@ import {
   Database,
   FileText,
   Globe,
-  MessagesSquare,
   Palette,
   Package,
   Summary as SummaryIcon,
   Settings as SettingsIcon,
   ShieldAlert,
-  SlidersHorizontal,
-  Type,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -50,11 +47,6 @@ export const SETTINGS_CATEGORY_ITEMS: SettingsCategoryItem[] = [
     labelKey: "settings.personalization",
   },
   {
-    id: "editor",
-    icon: <Type size={16} />,
-    labelKey: "settings.editor",
-  },
-  {
     id: "connections",
     icon: <Cable size={16} />,
     labelKey: "settings.connections",
@@ -68,11 +60,6 @@ export const SETTINGS_CATEGORY_ITEMS: SettingsCategoryItem[] = [
     id: "index",
     icon: <Database size={16} />,
     labelKey: "settings.index",
-  },
-  {
-    id: "context",
-    icon: <MessagesSquare size={16} />,
-    labelKey: "settings.context",
   },
   {
     id: "summary",
@@ -103,10 +90,5 @@ export const SETTINGS_CATEGORY_ITEMS: SettingsCategoryItem[] = [
     id: "agents",
     icon: <Bot size={16} />,
     labelKey: "settings.agents",
-  },
-  {
-    id: "advanced",
-    icon: <SlidersHorizontal size={16} />,
-    labelKey: "settings.advanced",
   },
 ];

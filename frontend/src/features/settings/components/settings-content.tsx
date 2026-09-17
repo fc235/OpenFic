@@ -1,4 +1,4 @@
-import { Box, Flex, IconButton, Text } from "@radix-ui/themes";
+import { Box, Flex, Heading, IconButton, Text } from "@radix-ui/themes";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
@@ -102,7 +102,13 @@ export function SettingsContent({
 }: SettingsContentProps) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
-  const initialCategory = route?.category ?? DEFAULT_SETTINGS_ROUTE_CATEGORY;
+  const requestedCategory = route?.category ?? DEFAULT_SETTINGS_ROUTE_CATEGORY;
+  const initialCategory =
+    requestedCategory === "editor" ||
+    requestedCategory === "context" ||
+    requestedCategory === "advanced"
+      ? "general"
+      : requestedCategory;
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialCategory);
   const [activeModelTab, setActiveModelTab] = useState<ModelSettingsTab>(
     route?.category === "models"
@@ -292,7 +298,10 @@ export function SettingsContent({
         queryClient.removeQueries({ queryKey });
       };
 
-      if (category === "general") removeQuery(["settings"]);
+      if (category === "general") {
+        removeQuery(["settings"]);
+        removeQuery(["audit-details-storage"]);
+      }
       if (category === "editor") removeQuery(["settings"]);
       if (category === "connections") {
         removeQuery(["model-providers"]);
@@ -416,11 +425,52 @@ export function SettingsContent({
         ) : displaySettings ? (
           <>
             {activeCategory === "general" ? (
-              <GeneralSettings
-                settings={displaySettings}
-                isSaving={saveMutation.isPending}
-                onSettingsChange={handleSettingsChange}
-              />
+              <Flex
+                direction="column"
+                gap="6"
+              >
+                <GeneralSettings
+                  settings={displaySettings}
+                  isSaving={saveMutation.isPending}
+                  onSettingsChange={handleSettingsChange}
+                />
+                <Flex
+                  direction="column"
+                  gap="4"
+                >
+                  <Heading
+                    as="h2"
+                    size="3"
+                  >
+                    {t("settings.editor")}
+                  </Heading>
+                  <EditorSettings />
+                </Flex>
+                <Flex
+                  direction="column"
+                  gap="4"
+                >
+                  <Heading
+                    as="h2"
+                    size="3"
+                  >
+                    {t("settings.context")}
+                  </Heading>
+                  <ContextSettings />
+                </Flex>
+                <Flex
+                  direction="column"
+                  gap="4"
+                >
+                  <Heading
+                    as="h2"
+                    size="3"
+                  >
+                    {t("settings.advanced")}
+                  </Heading>
+                  <AdvancedSettings />
+                </Flex>
+              </Flex>
             ) : null}
             {activeCategory === "personalization" ? (
               <PersonalizationSettings
@@ -430,7 +480,6 @@ export function SettingsContent({
                 onThemePreviewChange={onThemePreviewChange}
               />
             ) : null}
-            {activeCategory === "editor" ? <EditorSettings /> : null}
             {activeCategory === "connections" ? (
               <ConnectionsSettings
                 isAgentSettingsLocked={isAgentSettingsLocked}
@@ -451,7 +500,6 @@ export function SettingsContent({
                 isAgentSettingsLockLoading={isAgentSettingsLockLoading}
               />
             ) : null}
-            {activeCategory === "context" ? <ContextSettings /> : null}
             {activeCategory === "summary" ? (
               <SummarySettings
                 onCloseSettings={onClose}
@@ -502,7 +550,6 @@ export function SettingsContent({
                 isAgentSettingsLockLoading={isAgentSettingsLockLoading}
               />
             ) : null}
-            {activeCategory === "advanced" ? <AdvancedSettings /> : null}
           </>
         ) : null}
       </Box>

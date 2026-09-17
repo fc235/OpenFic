@@ -42,6 +42,7 @@ export const REGISTERED_TOOL_NAMES = [
   "update_index",
   "write_plan",
   "activate_skill",
+  "write_skill",
   "reference_skill",
 ] as const;
 
@@ -366,6 +367,13 @@ export const TOOL_DESCRIPTOR_META = {
     toolName: "activate_skill",
     group: "skill",
     tag: "activate",
+    isExplore: false,
+    contentMode: "hidden",
+  },
+  write_skill: {
+    toolName: "write_skill",
+    group: "skill",
+    tag: "write",
     isExplore: false,
     contentMode: "hidden",
   },

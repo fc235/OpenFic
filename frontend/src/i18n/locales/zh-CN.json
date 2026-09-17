@@ -2219,6 +2219,7 @@
     "tools": {
       "askUser": "询问",
       "activateSkill": "技能",
+      "writeSkill": "保存技能",
       "referenceSkill": "技能参考",
       "skillNotFound": "未知技能",
       "questionCount": "{{count}} 个问题",

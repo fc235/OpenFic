@@ -2156,6 +2156,7 @@
     "tools": {
       "askUser": "Ask",
       "activateSkill": "Skill",
+      "writeSkill": "Save Skill",
       "referenceSkill": "Skill Reference",
       "skillNotFound": "Unknown skill",
       "questionCount": "{{count}} questions",

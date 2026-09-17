@@ -723,6 +723,19 @@ const TOOL_REGISTRY = {
     getDetail: (message) =>
       getSkillArg(message, "skill_name") ?? i18n.t("assistant.tools.skillNotFound"),
   },
+  write_skill: {
+    toolName: "write_skill",
+    group: "skill",
+    tag: "write",
+    isExplore: false,
+    contentMode: "hidden",
+    icon: Sparkles,
+    getTitle: () => i18n.t("assistant.tools.writeSkill"),
+    getDetail: (message) => {
+      const data = getToolResultData(message);
+      return (isRecord(data) ? asString(data.name) : undefined) ?? getSkillArg(message, "name");
+    },
+  },
   reference_skill: {
     toolName: "reference_skill",
     group: "skill",

@@ -1,3 +1,5 @@
+import { LAN_PORT } from "./ports.js";
+
 interface LanBackend { baseUrl: string; bindHost?: string; shutdownToken: string }
 interface LanRestartDependencies {
   getBackend: () => LanBackend | null;
@@ -28,7 +30,7 @@ export function createLanRestartController(dependencies: LanRestartDependencies)
       try {
         if (!await dependencies.requestIdleStop(backend)) return;
         if (dependencies.getBackend() !== backend || dependencies.isStarting()) return;
-        await dependencies.restart(Number(new URL(backend.baseUrl).port), backend);
+        await dependencies.restart(lanEnabled ? LAN_PORT : Number(new URL(backend.baseUrl).port), backend);
         error = undefined;
       } catch (cause) {
         error = cause instanceof Error ? cause.message : String(cause);

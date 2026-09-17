@@ -14,6 +14,7 @@ For the general feature list, setup instructions, and usage guide, see the [upst
 - Closing the window can either close the frontend only or stop the local backend as well. The app can remember this choice.
 - When only the frontend is closed, background work and LAN access keep running. Opening the app again reconnects to the same backend.
 - LAN access can be enabled in Settings. The app shows addresses for available network interfaces and provides copy and QR-code controls.
+- Desktop LAN access uses fixed port `18473`. If the port is occupied, the app reports an error instead of switching ports.
 - When LAN access is changed, the backend waits for running Agent work to finish before restarting.
 - Releases, automatic updates, issue links, and Docker images point to `fc235/OpenFic`.
 

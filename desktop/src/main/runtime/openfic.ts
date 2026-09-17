@@ -2,7 +2,7 @@ import { net } from "electron";
 import { spawn } from "node:child_process";
 import { access, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
-import { findFreePort } from "../ports.js";
+import { resolveBackendPort } from "../ports.js";
 import {
   abortStartingBackendProcess,
   startBackendProcess,
@@ -600,8 +600,9 @@ export async function startLocalOpenFicBackend(
     message: "正在分配本地服务端口",
     progress: 0.6,
   });
-  const port = preferredPort ?? await findFreePort();
-  const bindHost = (await readDesktopPreferences()).lanEnabled ? "0.0.0.0" : "127.0.0.1";
+  const { lanEnabled } = await readDesktopPreferences();
+  const port = await resolveBackendPort(lanEnabled, preferredPort);
+  const bindHost = lanEnabled ? "0.0.0.0" : "127.0.0.1";
   throwIfAborted(signal);
   const command = createOpenFicServeCommand(venvPythonPath, port, bindHost);
   const proxyEnvironment = await getSystemProxyEnvironment("https://pypi.org/");

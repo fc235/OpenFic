@@ -47,7 +47,7 @@ test("repeated X clicks share one dialog and a failed preference write keeps the
   assert.equal(error.message, "disk full");
 });
 
-test("LAN restart waits for idle and preserves the active port", async () => {
+test("LAN restart waits for idle and uses the fixed port", async () => {
   const backend = {baseUrl:"http://127.0.0.1:18001",bindHost:"127.0.0.1",shutdownToken:"test"};
   let busy = true;
   const ports = [];
@@ -61,8 +61,21 @@ test("LAN restart waits for idle and preserves the active port", async () => {
   assert.equal(controller.isPending(true), true);
   busy = false;
   await controller.apply(true);
-  assert.deepEqual(ports, [18001]);
+  assert.deepEqual(ports, [18473]);
   assert.equal(controller.isPending(true), false);
+});
+
+test("disabling LAN preserves the active port and restores local binding", async () => {
+  const backend = {baseUrl:"http://127.0.0.1:18473",bindHost:"0.0.0.0",shutdownToken:"test"};
+  const ports = [];
+  const controller = createLanRestartController({
+    getBackend: () => backend, isStarting: () => false,
+    requestIdleStop: async () => true,
+    restart: async port => { ports.push(port); backend.bindHost = "127.0.0.1"; },
+  });
+  await controller.apply(false);
+  assert.deepEqual(ports, [18473]);
+  assert.equal(controller.isPending(false), false);
 });
 
 test("a switch or quit during idle check never restarts another backend", async () => {

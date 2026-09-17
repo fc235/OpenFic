@@ -3,7 +3,7 @@ import { readDesktopPreferences } from "../desktop-preferences.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isDesktopInstanceAppearance, type DesktopInstance, type DesktopInstanceAppearance } from "../../shared/config.js";
-import { findFreePort } from "../ports.js";
+import { resolveBackendPort } from "../ports.js";
 import { startBackendProcess, type BackendProcessHandle } from "../process.js";
 import { throwIfAborted, waitForBackend } from "../health.js";
 import type { StartupProgressTracker } from "../startup-progress.js";
@@ -165,8 +165,9 @@ export async function startDevBackend(
     message: "正在从 backend 源码启动本地服务",
     progress: 0.3,
   });
-  const port = preferredPort ?? await findFreePort();
-  const bindHost = (await readDesktopPreferences()).lanEnabled ? "0.0.0.0" : "127.0.0.1";
+  const { lanEnabled } = await readDesktopPreferences();
+  const port = await resolveBackendPort(lanEnabled, preferredPort);
+  const bindHost = lanEnabled ? "0.0.0.0" : "127.0.0.1";
   throwIfAborted(signal);
   const backendDir = path.join(app.getAppPath(), "..", "backend");
   const args = [

@@ -142,7 +142,10 @@ try {
   }, "LAN restart");
   // Prefer a private LAN address over benchmark adapters exposed by VPN clients.
   const lanUrl = (lan.addresses.find(({url}) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(new URL(url).hostname)) ?? lan.addresses[0]).url;
-  assert.equal(new URL(lanUrl).port, new URL(baseUrl).port);
+  assert.equal(new URL(lanUrl).port, "18473");
+  const localUrl = new URL(baseUrl);
+  localUrl.port = "18473";
+  baseUrl = localUrl.origin;
   const response = await fetch(lanUrl, {signal:AbortSignal.timeout(5000)});
   assert.equal(response.status, 200);
   assert.match(await response.text(), /<html/i);
@@ -178,7 +181,7 @@ try {
     await mobile.locator(".projects-page").waitFor({timeout:30000});
     await mobile.screenshot({path:path.join(testRoot,"mobile.png")});
   } finally { await mobileBrowser.close(); }
-  console.log("PASS LAN address serves full frontend HTML using the original port");
+  console.log("PASS LAN address serves full frontend HTML using fixed port 18473");
   await host("window.openficDesktopHost.saveDesktopPreferences({lanEnabled:false})");
   await waitFor(async () => {
     const state = await host("window.openficDesktopHost?.getDesktopPreferences?.()");

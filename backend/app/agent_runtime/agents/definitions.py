@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
 
 from app.agent_runtime.persistence.model import AgentDefinitionRecord
+from app.models.clients.model_params import normalize_reasoning_effort
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class AgentDefinition:
     enabled_tool_categories: tuple[str, ...]
     enabled_skills: tuple[str, ...]
     metadata: Mapping[str, Any]
+    reasoning_effort: str | None = None
     enabled: bool = True
     source: Literal["builtin", "custom"] = "builtin"
     color: str | None = None
@@ -58,6 +60,7 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
                 "web_search",
                 "web_fetch",
                 "plan",
+                "file_read",
                 "chapter_read",
                 "chapter_write",
                 "summary_read",
@@ -66,7 +69,8 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
                 "note_read",
                 "note_write",
                 "character_read",
-                "character_write"
+                "character_write",
+                "character_relationship",
             ),
             enabled_skills=(),
             metadata=MappingProxyType({}),
@@ -89,6 +93,7 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
             prompt_agent_name="plan",
             model_id=None,
             enabled_tool_categories=(
+                "file_read",
                 "orchestration",
                 "interaction",
                 "plan",
@@ -97,6 +102,7 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
                 "world_read",
                 "note_read",
                 "character_read",
+                "character_relationship",
             ),
             enabled_skills=(),
             metadata=MappingProxyType({}),
@@ -119,13 +125,15 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
             prompt_agent_name="explore",
             model_id=None,
             enabled_tool_categories=(
+                "file_read",
                 "chapter_read",
                 "summary_read",
                 "world_read",
                 "web_search",
                 "web_fetch",
                 "note_read",
-                "character_read"
+                "character_read",
+                "character_relationship",
             ),
             enabled_skills=(),
             metadata=MappingProxyType({}),
@@ -138,6 +146,7 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
             prompt_agent_name="composer",
             model_id=None,
             enabled_tool_categories=(
+                "file_read",
                 "chapter_read",
                 "summary_read",
                 "world_read",
@@ -146,7 +155,8 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
                 "note_read",
                 "note_write",
                 "character_read",
-                "character_write"
+                "character_write",
+                "character_relationship",
             ),
             enabled_skills=(),
             metadata=MappingProxyType({}),
@@ -159,12 +169,14 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
             prompt_agent_name="auditor",
             model_id=None,
             enabled_tool_categories=(
+                "file_read",
                 "chapter_read",
                 "summary_read",
                 "world_read",
                 "plan",
                 "note_read",
-                "character_read"
+                "character_read",
+                "character_relationship",
             ),
             enabled_skills=(),
             metadata=MappingProxyType({}),
@@ -177,6 +189,7 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
             prompt_agent_name="writer",
             model_id=None,
             enabled_tool_categories=(
+                "file_read",
                 "chapter_read",
                 "summary_read",
                 "world_read",
@@ -184,7 +197,8 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
                 "chapter_write",
                 "note_read",
                 "note_write",
-                "character_read"
+                "character_read",
+                "character_relationship",
             ),
             enabled_skills=(),
             metadata=MappingProxyType({}),
@@ -197,6 +211,7 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
             prompt_agent_name="actor",
             model_id=None,
             enabled_tool_categories=(
+                "file_read",
                 "plan",
                 "chapter_read",
                 "chapter_write",
@@ -206,7 +221,8 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
                 "note_read",
                 "note_write",
                 "character_read",
-                "character_write"
+                "character_write",
+                "character_relationship",
             ),
             enabled_skills=(),
             metadata=MappingProxyType({}),
@@ -219,12 +235,14 @@ DEFAULT_AGENT_DEFINITIONS: Mapping[str, AgentDefinition] = MappingProxyType(
             prompt_agent_name="reviewer",
             model_id=None,
             enabled_tool_categories=(
+                "file_read",
                 "chapter_read",
                 "summary_read",
                 "world_read",
                 "plan",
                 "character_read",
-                "note_read"
+                "character_relationship",
+                "note_read",
             ),
             enabled_skills=(),
             metadata=MappingProxyType({}),
@@ -245,6 +263,11 @@ def agent_definition_from_record(record: AgentDefinitionRecord) -> AgentDefiniti
         kind=cast(Literal["primary", "subagent"], record.kind),
         prompt_agent_name=record.prompt_agent_name,
         model_id=record.model_id,
+        reasoning_effort=(
+            normalize_reasoning_effort(record.reasoning_effort)
+            if record.reasoning_effort is not None
+            else None
+        ),
         enabled_tool_categories=tuple(record.enabled_tool_categories or ()),
         enabled_skills=tuple(record.enabled_skills or ()),
         metadata=MappingProxyType(dict(record.metadata_json or {})),

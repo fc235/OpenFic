@@ -157,6 +157,47 @@ class TestAgentAPI:
         assert attachment["url"].startswith("/agent-attachments/")
         assert settings.agent_attachments_dir.joinpath(attachment["storage_name"]).is_file()
 
+    async def test_upload_agent_text_attachment_extracts_and_persists_content(
+        self,
+        client: AsyncClient,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        target = await _seed_agent_target(client)
+        session_response = await client.post(
+            "/api/v1/agent/sessions",
+            json={"project_id": target["project_id"], "model_id": target["model_id"]},
+        )
+        session_id = session_response.json()["session_id"]
+        monkeypatch.setattr(settings, "agent_attachments_dir", tmp_path / "agent-attachments")
+
+        attachment_events = AsyncMock()
+        with patch("app.api.routers.agent_runtime.emit", new=attachment_events):
+            response = await client.post(
+                f"/api/v1/agent/sessions/{session_id}/attachments",
+                data={"client_attachment_id": "client-file-1"},
+                files={"file": ("notes.md", b"hello\nworld", "text/markdown")},
+            )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        attachment = response.json()
+        assert attachment["mime_type"] == "text/markdown"
+        assert attachment["content_length"] == len("hello\nworld")
+        assert attachment["line_count"] == 2
+        assert attachment["width"] is None
+        assert attachment["height"] is None
+        assert settings.agent_attachments_dir.joinpath(attachment["storage_name"]).is_file()
+        assert [call.args[0] for call in attachment_events.await_args_list] == [
+            "agent:attachment_status",
+            "agent:attachment_processing",
+            "agent:attachment_processing",
+            "agent:attachment_status",
+        ]
+        assert attachment_events.await_args_list[0].args[1]["status"] == "uploading"
+        assert attachment_events.await_args_list[1].args[1]["status"] == "started"
+        assert attachment_events.await_args_list[2].args[1]["status"] == "completed"
+        assert attachment_events.await_args_list[3].args[1]["status"] == "completed"
+
     async def test_send_agent_message_passes_session_attachment_metadata_to_runner(
         self,
         client: AsyncClient,
@@ -194,9 +235,62 @@ class TestAgentAPI:
                     "file_name": "reference.png",
                     "mime_type": "image/png",
                     "size_bytes": attachment["size_bytes"],
+                    "content_length": 0,
+                    "line_count": 0,
                     "width": 2,
                     "height": 3,
                     "url": attachment["url"],
+                }
+            ],
+        )
+
+    async def test_send_agent_message_passes_failed_attachment_errors_to_runner(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        target = await _seed_agent_target(client)
+        session_response = await client.post(
+            "/api/v1/agent/sessions",
+            json={"project_id": target["project_id"], "model_id": target["model_id"]},
+        )
+        session_id = session_response.json()["session_id"]
+        runner = _SESSION_RUNNERS[session_id]
+        runner.run = MagicMock(return_value=object())
+
+        with patch("app.api.routers.agent_runtime._launch_task", AsyncMock()):
+            response = await client.post(
+                f"/api/v1/agent/sessions/{session_id}/message",
+                json={
+                    "message": "请说明附件问题",
+                    "attachment_errors": [
+                        {
+                            "id": "failed-attachment",
+                            "file_name": "book.epub",
+                            "mime_type": "application/epub+zip",
+                            "size_bytes": 128,
+                            "error": "服务器未安装 Pandoc",
+                        }
+                    ],
+                },
+            )
+
+        assert response.status_code == status.HTTP_200_OK
+        runner.run.assert_called_once_with(
+            user_request="请说明附件问题",
+            attachments=[
+                {
+                    "id": "failed-attachment",
+                    "session_id": session_id,
+                    "storage_name": "",
+                    "file_name": "book.epub",
+                    "mime_type": "application/epub+zip",
+                    "size_bytes": 128,
+                    "content_length": 0,
+                    "line_count": 0,
+                    "width": None,
+                    "height": None,
+                    "url": "",
+                    "error": "服务器未安装 Pandoc",
                 }
             ],
         )
@@ -225,7 +319,7 @@ class TestAgentAPI:
 
         assert config["reasoning_effort"] == "high"
 
-    async def test_build_model_config_omits_disabled_reasoning_effort(self) -> None:
+    async def test_build_model_config_preserves_auto_reasoning_effort(self) -> None:
         model = SimpleNamespace(
             id="reasoning-model-record",
             model_id="reasoning-model",
@@ -245,9 +339,9 @@ class TestAgentAPI:
             url="https://custom.api/v1",
         )
 
-        config = await _build_model_config(model, provider, "sk-test", "off")
+        config = await _build_model_config(model, provider, "sk-test", "auto")
 
-        assert "reasoning_effort" not in config
+        assert config["reasoning_effort"] == "auto"
 
     async def test_list_agent_tools_success(self, client: AsyncClient) -> None:
         response = await client.get("/api/v1/agent/tools")
@@ -388,6 +482,22 @@ class TestAgentAPI:
             },
             {
                 "key": "delete_character",
+                "is_readonly": False,
+            },
+            {
+                "key": "query_character_relationships",
+                "is_readonly": True,
+            },
+            {
+                "key": "create_character_relationship",
+                "is_readonly": False,
+            },
+            {
+                "key": "edit_character_relationship",
+                "is_readonly": False,
+            },
+            {
+                "key": "delete_character_relationship",
                 "is_readonly": False,
             },
             {
@@ -1255,9 +1365,41 @@ class TestAgentAPI:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["session_id"] == session_id
-        assert data["state"]["session_id"] == session_id
+        assert data["state"] == {"agent_key": "build"}
         assert data["is_running"] is True
         fake_registry.is_running.assert_awaited_once_with(session_id)
+
+    async def test_get_session_state_returns_only_agent_key_from_checkpoint(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        fake_checkpointer = SimpleNamespace(
+            aget_tuple=AsyncMock(
+                return_value=SimpleNamespace(
+                    checkpoint={
+                        "channel_values": {
+                            "agent_key": "writer",
+                            "messages": [{"content": "large transcript"}],
+                            "model_config": {"model_id": "model-1"},
+                        }
+                    },
+                    pending_writes=[],
+                )
+            )
+        )
+        fake_registry = SimpleNamespace(is_running=AsyncMock(return_value=False))
+
+        with patch(
+            "app.api.routers.agent_runtime.get_checkpointer",
+            new=AsyncMock(return_value=fake_checkpointer),
+        ), patch(
+            "app.api.routers.agent_runtime.get_agent_run_registry",
+            return_value=fake_registry,
+        ):
+            response = await client.get("/api/v1/agent/sessions/session-summary")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["state"] == {"agent_key": "writer"}
 
     async def test_get_session_state_returns_pending_interrupts(
         self,
@@ -2715,7 +2857,7 @@ class TestAgentAPI:
         data = response.json()
         assert data["session_id"] == session_id
         assert data["is_running"] is False
-        assert data["state"]["model_config"]["model_id"] == "gpt-3.5-turbo"
+        assert data["state"] == {"agent_key": "build"}
         assert session_id not in _SESSION_RUNNERS
 
     async def test_get_session_state_allows_deleted_model_without_runner(
@@ -2740,7 +2882,7 @@ class TestAgentAPI:
         response = await client.get(f"/api/v1/agent/sessions/{session_id}")
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["state"]["model_config"]["model_record_id"] == target["model_id"]
+        assert response.json()["state"] == {"agent_key": "build"}
         assert session_id not in _SESSION_RUNNERS
 
     async def test_get_session_state_reads_legacy_model_config_without_record_id(
@@ -2772,7 +2914,7 @@ class TestAgentAPI:
         response = await client.get(f"/api/v1/agent/sessions/{session_id}")
 
         assert response.status_code == status.HTTP_200_OK
-        assert "model_record_id" not in response.json()["state"]["model_config"]
+        assert response.json()["state"] == {"agent_key": "build"}
         assert session_id not in _SESSION_RUNNERS
 
     async def test_agent_checkpoint_and_session_state_do_not_contain_api_key(
@@ -2803,7 +2945,7 @@ class TestAgentAPI:
         response = await client.get(f"/api/v1/agent/sessions/{session_id}")
 
         assert response.status_code == status.HTTP_200_OK
-        assert "api_key" not in response.json()["state"]["model_config"]
+        assert response.json()["state"] == {"agent_key": "build"}
 
     async def test_list_subagent_sessions_returns_only_active_state_rows(
         self,
@@ -3044,7 +3186,6 @@ class TestAgentAPI:
         assert data["messages"] == [
             {
                 "id": data["messages"][0]["id"],
-                "task_id": task_id,
                 "role": "user",
                 "agent_id": "primary",
                 "content": "请起草这一章",
@@ -3061,7 +3202,6 @@ class TestAgentAPI:
             },
             {
                 "id": f"{assistant_message.id}:text",
-                "task_id": task_id,
                 "role": "assistant",
                 "agent_id": "writer",
                 "content": "这是子 agent 的回复",

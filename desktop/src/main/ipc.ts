@@ -50,6 +50,7 @@ import { createStartupProgressTracker, getStartupProgress } from "./startup-prog
 import { appendLog, exportLogs } from "./logging.js";
 import { captureException } from "./telemetry.js";
 import { notifySessionCompleted } from "./session-notifications.js";
+import { validateOpenAICodexAuthorizationUrl } from "./openai-codex-authorization.js";
 import type { BackendProcessHandle } from "./process.js";
 import { isDesktopInstanceAppearance, type DesktopConfig, type DesktopInstance } from "../shared/config.js";
 import type { DesktopPreferencesState } from "../shared/desktop-preferences.js";
@@ -735,6 +736,10 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle(IpcChannels.notifySessionCompleted, (event, payload: unknown) =>
     notifySessionCompleted(context.shellWindow(), event.sender, payload),
   );
+  ipcMain.handle(IpcChannels.openOpenAICodexAuthorization, async (event, value: unknown) => {
+    requireDesktopSender(event);
+    await shell.openExternal(validateOpenAICodexAuthorizationUrl(value));
+  });
   ipcMain.handle(IpcChannels.reportBug, () => shell.openExternal(BUG_REPORT_URL));
   ipcMain.handle(IpcChannels.suggestFeature, () => shell.openExternal(FEATURE_SUGGESTION_URL));
 }

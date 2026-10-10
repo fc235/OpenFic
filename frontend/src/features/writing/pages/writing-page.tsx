@@ -8,7 +8,7 @@ import { useParams } from "react-router";
 
 import "./writing-page.css";
 
-import { PanelLayoutLoading } from "@/components";
+import { PanelLayoutLoading, toast } from "@/components";
 import { AssistantSidebarHost, MobileAppSidebarTrigger, useAppShell } from "@/features/app-shell";
 import type { AssistantSidebarState } from "@/features/assistant";
 import { useMobileSidebarSwipe } from "@/hooks/use-mobile-sidebar-swipe";
@@ -24,6 +24,7 @@ import { useCreateChapter } from "../hooks/use-chapters";
 import { useNoteTree } from "../hooks/use-notes";
 import { useCreateVolume, useVolumeTree } from "../hooks/use-volumes";
 import { isEmptyTab } from "../lib/tab.types";
+import { useChapterNavigationStore } from "../store/use-chapter-navigation-store";
 import { useTabsStore, useActiveTabId, useTabs, useTabsLoaded } from "../store/use-tabs-store";
 import { useWritingStore } from "../store/use-writing-store";
 
@@ -65,6 +66,7 @@ export function WritingPage() {
   const activeTabId = useActiveTabId();
   const tabs = useTabs();
   const isTabsLoaded = useTabsLoaded();
+  const chapterNavigation = useChapterNavigationStore((state) => state.request);
   const panelLayout = usePersistedPanelLayout(PANEL_LAYOUT_KEY, PANEL_IDS, !isMobile);
 
   const activeTab = useMemo(() => tabs.find((t) => t.id === activeTabId), [tabs, activeTabId]);
@@ -272,6 +274,30 @@ export function WritingPage() {
     },
     [handleSelectItem],
   );
+
+  useEffect(() => {
+    if (!chapterNavigation) return;
+    if (chapterNavigation.projectId !== projectId) {
+      useChapterNavigationStore.getState().consume(chapterNavigation.id);
+      return;
+    }
+    if (!isTabsLoaded || isChaptersLoading) return;
+    if (useTabsStore.getState().currentProjectId !== projectId) return;
+    if (activeTabId === `chapter:${chapterNavigation.chapterId}`) return;
+    handleSelectItem(chapterNavigation.chapterId, chapterNavigation.title);
+    if (useTabsStore.getState().activeTabId !== `chapter:${chapterNavigation.chapterId}`) {
+      useChapterNavigationStore.getState().consume(chapterNavigation.id);
+      toast.error(t("assistant.chapterNavigation.tabsFull"));
+    }
+  }, [
+    chapterNavigation,
+    projectId,
+    isTabsLoaded,
+    isChaptersLoading,
+    activeTabId,
+    handleSelectItem,
+    t,
+  ]);
 
   const handleEditorScrollPositionChange = useCallback(
     (type: "chapter" | "note", entityId: string, scrollTop: number) => {

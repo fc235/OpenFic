@@ -39,11 +39,17 @@ import {
   type WritingWorkingCopyController,
 } from "../hooks/use-writing-working-copy";
 import { createChapterEditorDraft, isChapterEditorDraftDirty } from "../lib/chapter-editor-draft";
+import { resolveChapterLine } from "../lib/chapter-navigation";
+import {
+  ChapterNavigationHighlight,
+  chapterNavigationHighlightKey,
+} from "../lib/chapter-navigation-highlight";
 import { createEditorExtensions } from "../lib/editor-config";
 import {
   getNextWritingWorkingCopyTimestamp,
   isRemoteWritingEntityNewer,
 } from "../lib/writing-working-copy";
+import { useChapterNavigationStore } from "../store/use-chapter-navigation-store";
 import { useTabsStore } from "../store/use-tabs-store";
 
 const MANUAL_SAVE_EVENT = "openfic:chapter-editor-manual-save";
@@ -97,6 +103,8 @@ function ChapterEditorContent({
   addSelectionToConversationRef,
 }: ChapterEditorContentProps) {
   const { t } = useTranslation();
+  const chapterNavigation = useChapterNavigationStore((state) => state.request);
+  const navigationHighlightRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const updateMutation = useUpdateChapter();
   const { containerRef, scrollbarProps } = useScrollbarAutoHide();
   const editorContentRef = useRef<HTMLDivElement>(null);
@@ -233,26 +241,36 @@ function ChapterEditorContent({
     [updateDirtyState],
   );
 
-  const editor = useEditor({
-    extensions: createEditorExtensions({
-      placeholder: t("writing.contentPlaceholder"),
-      autoIndent: () => autoIndentRef.current,
-      autoConvertPunctuation: () => autoConvertPunctuationRef.current,
-      autoPairSymbols: () => autoPairSymbolsRef.current,
-      shortcuts: {
-        onFind: openFind,
-        onReplace: openReplace,
-        onSave: () => {
-          if (isAgentLocked) {
-            showLockedToast();
-            return;
-          }
-          window.dispatchEvent(new Event(MANUAL_SAVE_EVENT));
+  const editorExtensions = useMemo(
+    () => [
+      ChapterNavigationHighlight,
+      ...createEditorExtensions({
+        placeholder: t("writing.contentPlaceholder"),
+        autoIndent: () => autoIndentRef.current,
+        autoConvertPunctuation: () => autoConvertPunctuationRef.current,
+        autoPairSymbols: () => autoPairSymbolsRef.current,
+        shortcuts: {
+          onFind: openFind,
+          onReplace: openReplace,
+          onSave: () => {
+            if (isAgentLocked) {
+              showLockedToast();
+              return;
+            }
+            window.dispatchEvent(new Event(MANUAL_SAVE_EVENT));
+          },
         },
-      },
-    }),
+      }),
+    ],
+    [isAgentLocked, openFind, openReplace, showLockedToast, t],
+  );
+  const initialContentRef = useRef(
+    initialDraft.content ? newlinesToHtml(initialDraft.content) : "",
+  );
+  const editor = useEditor({
+    extensions: editorExtensions,
     editable: !isAgentLocked,
-    content: initialDraft.content ? newlinesToHtml(initialDraft.content) : "",
+    content: initialContentRef.current,
     onUpdate: ({ editor }) => {
       if (isAgentLocked) return;
       syncDirtyStateFromEditor(editor);
@@ -289,6 +307,77 @@ function ChapterEditorContent({
       if (restoreFrameId !== null) window.cancelAnimationFrame(restoreFrameId);
     };
   }, [chapter.id, containerRef, editor, onScrollPositionChange]);
+
+  useEffect(() => {
+    if (
+      !editor ||
+      !chapterNavigation ||
+      chapterNavigation.chapterId !== chapter.id ||
+      chapterNavigation.projectId !== chapter.projectId
+    )
+      return;
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        const request = useChapterNavigationStore.getState().request;
+        if (request?.id !== chapterNavigation.id) return;
+        const container = containerRef.current;
+        if (!container) return;
+        const lines: string[] = [];
+        const ranges: { from: number; to: number }[] = [];
+        editor.state.doc.forEach((node, offset) => {
+          lines.push(node.textContent);
+          ranges.push({ from: offset, to: offset + node.nodeSize });
+        });
+        const line = resolveChapterLine(lines, request);
+        const element = editor.view.dom.children.item(line - 1);
+        if (!(element instanceof HTMLElement)) return;
+        const previous = navigationHighlightRef.current;
+        if (previous) {
+          clearTimeout(previous);
+        }
+        editor.view.dispatch(editor.state.tr.setMeta(chapterNavigationHighlightKey, null));
+        void element.offsetWidth;
+        editor.view.dispatch(
+          editor.state.tr.setMeta(chapterNavigationHighlightKey, ranges[line - 1]),
+        );
+        container.scrollTop +=
+          element.getBoundingClientRect().top -
+          container.getBoundingClientRect().top -
+          container.clientHeight / 3;
+        latestScrollTopRef.current = container.scrollTop;
+        onScrollPositionChange?.(chapter.id, container.scrollTop);
+        const timer = setTimeout(() => {
+          if (!editor.isDestroyed)
+            editor.view.dispatch(editor.state.tr.setMeta(chapterNavigationHighlightKey, null));
+          navigationHighlightRef.current = null;
+        }, 1800);
+        navigationHighlightRef.current = timer;
+        useChapterNavigationStore.getState().consume(request.id);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+    };
+  }, [
+    chapterNavigation,
+    chapter.id,
+    chapter.projectId,
+    editor,
+    containerRef,
+    onScrollPositionChange,
+  ]);
+
+  useEffect(
+    () => () => {
+      const highlight = navigationHighlightRef.current;
+      if (highlight) {
+        clearTimeout(highlight);
+      }
+    },
+    [],
+  );
 
   const handleSave = useCallback(
     async (isManualSave = false) => {
@@ -613,11 +702,20 @@ export function ChapterEditor({
   addSelectionToConversationRef,
 }: ChapterEditorProps) {
   const { t } = useTranslation();
-  const { data } = useWritingEditorEntity({
+  const { data, isError } = useWritingEditorEntity({
     type: "chapter",
     entityId: chapterId,
     fetchEntity: fetchChapter,
   });
+
+  useEffect(() => {
+    if (!isError || data) return;
+    const request = useChapterNavigationStore.getState().request;
+    if (!request || request.chapterId !== chapterId) return;
+    useChapterNavigationStore.getState().consume(request.id);
+    toast.error(t("assistant.chapterNavigation.unavailable"));
+    useTabsStore.getState().closeTab(`chapter:${chapterId}`);
+  }, [isError, data, chapterId, t]);
 
   if (!chapterId) {
     return (

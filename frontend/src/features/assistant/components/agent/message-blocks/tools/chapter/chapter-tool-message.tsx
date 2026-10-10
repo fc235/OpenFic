@@ -3,6 +3,7 @@ import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { toast } from "@/components";
+import { useChapterNavigation } from "@/features/assistant/hooks/use-chapter-navigation";
 import {
   buildChapterDiffCopyText,
   formatChapterDisplayName,
@@ -11,13 +12,16 @@ import {
   getChapterDiffPreview,
   summarizeChapterDiffSection,
 } from "@/features/assistant/lib/chapter-tool-preview";
+import { getChapterLineTarget } from "@/features/writing/lib/chapter-navigation";
 import i18n from "@/i18n";
 import type { AgentMessage } from "@/lib/agent.types";
 
+import { ToolBody, ToolNotice, ToolTextBlock } from "../shared/tool-message-shared";
+
 import "./chapter-tool-message.css";
 
-import { ToolBody, ToolNotice, ToolTextBlock } from "../shared/tool-message-shared";
 import { getChapterPayload, getToolResultMessage } from "../shared/tool-message-utils";
+import { ChapterNavigationButton } from "./chapter-navigation-button";
 
 interface ChapterToolMessageProps {
   message: AgentMessage;
@@ -26,9 +30,14 @@ interface ChapterToolMessageProps {
 const COPY_FEEDBACK_MS = 1200;
 
 export function ChapterToolMessage({ message }: ChapterToolMessageProps) {
+  const navigateToChapter = useChapterNavigation();
   const chapter = getChapterPayload(message);
   const diffPreview = getChapterDiffPreview(message);
   const diffSection = getChapterDiffBodySection(diffPreview);
+  const chapterId =
+    message.toolName === "edit_chapter"
+      ? (diffPreview?.chapter_id ?? chapter.chapter_id)
+      : undefined;
   const isMutationTool =
     message.toolName === "write_chapter" || message.toolName === "edit_chapter";
   const copyFeedbackTimerRef = useRef<number | null>(null);
@@ -90,7 +99,17 @@ export function ChapterToolMessage({ message }: ChapterToolMessageProps) {
               gap="2"
               className="agent-chapter-diff-card-meta"
             >
-              <Text className="agent-chapter-diff-card-title">{chapterName}</Text>
+              {chapterId ? (
+                <ChapterNavigationButton
+                  chapterId={chapterId}
+                  target={getChapterLineTarget(diffSection?.lines ?? [])}
+                  className="agent-chapter-diff-card-title"
+                >
+                  {chapterName}
+                </ChapterNavigationButton>
+              ) : (
+                <Text className="agent-chapter-diff-card-title">{chapterName}</Text>
+              )}
               <Flex
                 align="center"
                 gap="1"
@@ -142,6 +161,38 @@ export function ChapterToolMessage({ message }: ChapterToolMessageProps) {
                       key={`${index}-${line.before_line_number ?? "n"}-${line.after_line_number ?? "n"}`}
                       className="agent-chapter-diff-line"
                       data-type={line.type}
+                      role={chapterId ? "button" : undefined}
+                      tabIndex={chapterId ? 0 : undefined}
+                      title={chapterId ? i18n.t("assistant.chapterNavigation.locate") : undefined}
+                      aria-label={
+                        chapterId
+                          ? `${i18n.t("assistant.chapterNavigation.locate")}: ${line.text}`
+                          : undefined
+                      }
+                      onClick={
+                        chapterId
+                          ? () => {
+                              void navigateToChapter(
+                                chapterId,
+                                getChapterLineTarget(diffSection.lines, index),
+                              );
+                            }
+                          : undefined
+                      }
+                      onKeyDown={
+                        chapterId
+                          ? (event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                void navigateToChapter(
+                                  chapterId,
+                                  getChapterLineTarget(diffSection.lines, index),
+                                );
+                              }
+                            }
+                          : undefined
+                      }
                     >
                       <span className="agent-chapter-diff-gutter">
                         {getChapterDiffDisplayLineNumber(line) ?? ""}

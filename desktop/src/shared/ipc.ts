@@ -44,6 +44,7 @@ export const IpcChannels = {
   reportBug: "help:report-bug",
   suggestFeature: "help:suggest-feature",
   notifySessionCompleted: "notification:session-completed",
+  openOpenAICodexAuthorization: "auth:open-openai-codex-authorization",
   getZoomFactor: "zoom:get-factor",
   saveZoomFactor: "zoom:save-factor",
   zoomFactorChanged: "zoom:changed",

@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import { MarkdownEditor } from "@/components";
 import { toast } from "@/components/toast";
+import { useEditorDraft, type EditorDraft } from "@/hooks/use-editor-draft";
 import { updateWorldInfoEntry } from "@/lib/api-client";
 import {
   getEditorContentLimit,
@@ -38,10 +39,8 @@ interface EntryEditorProps {
   onScrollComplete?: () => void;
   /** Agent 运行时锁定编辑 */
   isAgentLocked?: boolean;
+  canSave: () => boolean;
 }
-
-/** 自动保存防抖延迟（毫秒） */
-const AUTO_SAVE_DELAY = 1500;
 
 export function EntryEditor({
   entry,
@@ -50,21 +49,12 @@ export function EntryEditor({
   scrollToLine,
   onScrollComplete,
   isAgentLocked = false,
+  canSave,
 }: EntryEditorProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
 
-  const [name, setName] = useState(entry.name);
-  const [draftContent, setDraftContent] = useState(entry.content);
   const [tokenCount, setTokenCount] = useState<number>(entry.tokenCount || 0);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const savedContentRef = useRef(entry.content);
-  const savedNameRef = useRef(entry.name);
-  const hasChangesRef = useRef(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isSavingRef = useRef(false);
   const editorRef = useRef<Editor | null>(null);
   const scrolledRef = useRef(false);
   const rejectedContentRef = useRef<string | null>(null);
@@ -87,7 +77,11 @@ export function EntryEditor({
   );
 
   const updateCaches = useCallback(
-    (updated: WorldInfoEntry) => {
+    async (updated: WorldInfoEntry) => {
+      await queryClient.cancelQueries(
+        { queryKey: ["world-info-entry-detail", entry.id], exact: true },
+        { revert: false },
+      );
       queryClient.setQueryData(["world-info-entry-detail", entry.id], updated);
       queryClient.setQueryData(
         ["world-info-entries", worldInfoId],
@@ -111,113 +105,47 @@ export function EntryEditor({
     [entry.id, queryClient, worldInfoId],
   );
 
-  const flushSave = useCallback(async () => {
-    if (isSavingRef.current || !hasChangesRef.current) return;
-    isSavingRef.current = true;
-    setIsSaving(true);
-    try {
-      while (hasChangesRef.current) {
-        const content = savedContentRef.current;
-        const newName = savedNameRef.current.trim();
-        const contentLimit = getEditorContentLimit(content);
-        if (!contentLimit.isWithinLimit) {
-          showContentLimitToast(content);
-          isSavingRef.current = false;
-          setIsSaving(false);
-          return;
-        }
-        rejectedContentRef.current = null;
-        const hasDuplicateName = entries.some(
-          (item) => item.id !== entry.id && item.name === newName,
-        );
-        if (hasDuplicateName) {
-          toast.error(t("worldInfo.duplicateEntryName"));
-          isSavingRef.current = false;
-          setIsSaving(false);
-          return;
-        }
-
-        const newTokenCount = await countTokensAsync(content);
-
-        const updated = await updateWorldInfoEntry(entry.id, {
-          name: newName,
-          content,
-          tokenCount: newTokenCount,
-        });
-        updateCaches(updated);
-        hasChangesRef.current =
-          savedContentRef.current !== content || savedNameRef.current.trim() !== newName;
-        setHasChanges(hasChangesRef.current);
+  const saveDraft = useCallback(
+    async ({ title, content }: EditorDraft): Promise<EditorDraft | null> => {
+      if (!getEditorContentLimit(content).isWithinLimit) {
+        showContentLimitToast(content);
+        return null;
       }
-    } catch {
-      toast.error(t("common.saveFailed"));
-    } finally {
-      isSavingRef.current = false;
-      setIsSaving(false);
-    }
-  }, [entries, entry.id, showContentLimitToast, t, updateCaches]);
-
-  const triggerAutoSave = useCallback(() => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-    }
-    saveTimerRef.current = setTimeout(() => {
-      void flushSave();
-    }, AUTO_SAVE_DELAY);
-  }, [flushSave]);
-
-  const handleTitleChange = useCallback(
-    (newName: string) => {
-      setName(newName);
-      savedNameRef.current = newName;
-      hasChangesRef.current = true;
-      setHasChanges(true);
-      triggerAutoSave();
+      rejectedContentRef.current = null;
+      const newName = title.trim();
+      if (entries.some((item) => item.id !== entry.id && item.name === newName)) {
+        toast.error(t("worldInfo.duplicateEntryName"));
+        return null;
+      }
+      const newTokenCount = await countTokensAsync(content);
+      if (!canSave()) return null;
+      const updated = await updateWorldInfoEntry(entry.id, {
+        name: newName,
+        content,
+        tokenCount: newTokenCount,
+      });
+      await updateCaches(updated);
+      return { title: updated.name, content: updated.content };
     },
-    [triggerAutoSave],
+    [canSave, entries, entry.id, showContentLimitToast, t, updateCaches],
   );
-
-  const handleContentChange = useCallback(
-    (markdown: string) => {
-      savedContentRef.current = markdown;
-      setDraftContent(markdown);
-      hasChangesRef.current = true;
-      setHasChanges(true);
-      triggerAutoSave();
-    },
-    [triggerAutoSave],
-  );
-
-  const handleSave = useCallback(() => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    void flushSave();
-  }, [flushSave]);
-
-  const flushSaveRef = useRef(flushSave);
-  flushSaveRef.current = flushSave;
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-      }
-      if (hasChangesRef.current) {
-        void flushSaveRef.current();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (hasChangesRef.current) return;
-
-    savedNameRef.current = entry.name;
-    savedContentRef.current = entry.content;
-    setName(entry.name);
-    setDraftContent(entry.content);
-    setTokenCount(entry.tokenCount || 0);
-  }, [entry.content, entry.name, entry.tokenCount]);
+  const {
+    title: name,
+    content: draftContent,
+    hasChanges,
+    isSaving,
+    isSaveBlocked,
+    handleTitleChange,
+    handleContentChange,
+    handleSave,
+  } = useEditorDraft({
+    key: `world-info:${entry.id}`,
+    value: { title: entry.name, content: entry.content },
+    isLocked: isAgentLocked,
+    canSave,
+    onSave: saveDraft,
+    onError: () => toast.error(t("common.saveFailed")),
+  });
 
   useEffect(() => {
     let active = true;
@@ -269,10 +197,11 @@ export function EntryEditor({
     <MarkdownEditor
       title={name}
       onTitleChange={handleTitleChange}
-      content={entry.content}
+      content={draftContent}
       onContentChange={handleContentChange}
       onSave={handleSave}
       isSaving={isSaving}
+      isSaveBlocked={isSaveBlocked}
       hasChanges={hasChanges}
       placeholder={t("worldInfo.contentPlaceholder")}
       titlePlaceholder={t("worldInfo.entryNamePlaceholder")}

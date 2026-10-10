@@ -38,6 +38,7 @@ from app.api.routers import (
     dashboard,
     health,
     import_router,
+    openai_codex,
     model_icons,
     model_provider_catalog,
     model_providers,
@@ -86,6 +87,7 @@ from app.agent_runtime.attachments import (
     cleanup_orphaned_agent_attachment_files,
     ensure_agent_attachments_dir,
 )
+from app.agent_runtime.attachment_static import AgentAttachmentStaticFiles
 from app.core.storage import ensure_character_images_dir, ensure_covers_dir
 from app.chapter_export.service import cleanup_chapter_export_files
 from app.models.builtin import seed_builtin_models
@@ -395,6 +397,7 @@ async def _cleanup_orphaned_agent_attachment_files() -> None:
     session = await create_session()
     try:
         deleted_files = await cleanup_orphaned_agent_attachment_files(session)
+        await session.commit()
         if deleted_files:
             logger.info(f"Deleted {deleted_files} orphaned agent attachment files at startup")
     finally:
@@ -698,6 +701,7 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-OAuth-Revocation-Confirmed"],
     )
     app.add_middleware(AccessLogMiddleware)
 
@@ -715,6 +719,7 @@ def create_app() -> FastAPI:
     app.include_router(world_info_entries.router, prefix=app_settings.api_v1_prefix)
     app.include_router(settings.router, prefix=app_settings.api_v1_prefix)
     app.include_router(import_router.router, prefix=app_settings.api_v1_prefix)
+    app.include_router(openai_codex.router, prefix=app_settings.api_v1_prefix)
     app.include_router(model_providers.router, prefix=app_settings.api_v1_prefix)
     app.include_router(model_provider_catalog.router, prefix=app_settings.api_v1_prefix)
     app.include_router(models.router, prefix=app_settings.api_v1_prefix)
@@ -751,7 +756,7 @@ def create_app() -> FastAPI:
     agent_attachments_dir = ensure_agent_attachments_dir()
     app.mount(
         "/agent-attachments",
-        StaticFiles(directory=str(agent_attachments_dir)),
+        AgentAttachmentStaticFiles(directory=str(agent_attachments_dir)),
         name="agent_attachments",
     )
 

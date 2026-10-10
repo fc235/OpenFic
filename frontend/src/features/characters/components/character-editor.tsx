@@ -1,10 +1,11 @@
-import { Flex, Text } from "@radix-ui/themes";
+import { Box, Flex, Skeleton, Text } from "@radix-ui/themes";
 import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { MarkdownEditor, Spinner } from "@/components";
+import { MarkdownEditor } from "@/components";
 import { toast } from "@/components/toast";
+import { useEditorDraft, type EditorDraft } from "@/hooks/use-editor-draft";
 import type { Character } from "@/lib/character.types";
 import {
   getEditorContentLimit,
@@ -13,36 +14,24 @@ import {
 } from "@/lib/editor-content-limits";
 import { countTokensAsync } from "@/lib/token-count-async";
 
-const AUTO_SAVE_DELAY = 1500;
-
 interface CharacterEditorProps {
   character: Character | null;
-  isSaving?: boolean;
   isLoading?: boolean;
   isAgentLocked?: boolean;
-  onSave: (data: { name: string; description: string }) => Promise<void> | void;
+  canSave: () => boolean;
+  onSave: (data: { name: string; description: string }) => Promise<Character | null>;
 }
 
 export function CharacterEditor({
   character,
-  isSaving = false,
   isLoading = false,
   isAgentLocked = false,
+  canSave,
   onSave,
 }: CharacterEditorProps) {
   const { t } = useTranslation();
-  const [name, setName] = useState(character?.name ?? "");
-  const [description, setDescription] = useState(character?.description ?? "");
   const [tokenCount, setTokenCount] = useState(0);
-  const [hasChanges, setHasChanges] = useState(false);
   const editorRef = useRef<Editor | null>(null);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestValueRef = useRef({
-    name: character?.name ?? "",
-    description: character?.description ?? "",
-  });
-  const hasChangesRef = useRef(false);
-  const isSavingRef = useRef(false);
   const rejectedContentRef = useRef<string | null>(null);
 
   const showContentLimitToast = useCallback(
@@ -62,105 +51,35 @@ export function CharacterEditor({
     [t],
   );
 
-  const flushSave = useCallback(async () => {
-    if (!character || isSavingRef.current || !hasChangesRef.current) return;
-    isSavingRef.current = true;
-    try {
-      while (hasChangesRef.current) {
-        const nextName = latestValueRef.current.name.trim();
-        if (!nextName) return;
-        const description = latestValueRef.current.description;
-        const contentLimit = getEditorContentLimit(description);
-        if (!contentLimit.isWithinLimit) {
-          showContentLimitToast(description);
-          return;
-        }
-        rejectedContentRef.current = null;
-
-        await onSave({ name: nextName, description });
-        hasChangesRef.current =
-          latestValueRef.current.name.trim() !== nextName ||
-          latestValueRef.current.description !== description;
-        setHasChanges(hasChangesRef.current);
+  const saveDraft = useCallback(
+    async ({ title, content }: EditorDraft): Promise<EditorDraft | null> => {
+      if (!character || !title.trim()) return null;
+      if (!getEditorContentLimit(content).isWithinLimit) {
+        showContentLimitToast(content);
+        return null;
       }
-    } catch {
-      hasChangesRef.current = true;
-      setHasChanges(true);
-    } finally {
-      isSavingRef.current = false;
-    }
-  }, [character, onSave, showContentLimitToast]);
-
-  const scheduleSave = useCallback(() => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      saveTimerRef.current = null;
-      void flushSave();
-    }, AUTO_SAVE_DELAY);
-  }, [flushSave]);
-
-  const handleTitleChange = useCallback(
-    (value: string) => {
-      setName(value);
-      latestValueRef.current.name = value;
-      hasChangesRef.current = true;
-      setHasChanges(true);
-      scheduleSave();
+      rejectedContentRef.current = null;
+      const updated = await onSave({ name: title.trim(), description: content });
+      return updated ? { title: updated.name, content: updated.description } : null;
     },
-    [scheduleSave],
+    [character, onSave, showContentLimitToast],
   );
-
-  const handleContentChange = useCallback(
-    (value: string) => {
-      setDescription(value);
-      latestValueRef.current.description = value;
-      hasChangesRef.current = true;
-      setHasChanges(true);
-      scheduleSave();
-    },
-    [scheduleSave],
-  );
-
-  const handleSave = useCallback(() => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    void flushSave();
-  }, [flushSave]);
-
-  useEffect(() => {
-    if (!character) return;
-
-    if (hasChangesRef.current) return;
-
-    const hasSameContent =
-      latestValueRef.current.name === character.name &&
-      latestValueRef.current.description === character.description;
-    if (hasSameContent) return;
-
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    setName(character.name);
-    setDescription(character.description);
-    latestValueRef.current = {
-      name: character.name,
-      description: character.description,
-    };
-    hasChangesRef.current = false;
-    setHasChanges(false);
-  }, [character]);
-
-  const flushSaveRef = useRef(flushSave);
-  flushSaveRef.current = flushSave;
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      void flushSaveRef.current();
-    };
-  }, []);
+  const {
+    title: name,
+    content: description,
+    hasChanges,
+    isSaving,
+    isSaveBlocked,
+    handleTitleChange,
+    handleContentChange,
+    handleSave,
+  } = useEditorDraft({
+    key: `character:${character?.id ?? "empty"}`,
+    value: { title: character?.name ?? "", content: character?.description ?? "" },
+    isLocked: isAgentLocked,
+    canSave,
+    onSave: saveDraft,
+  });
 
   useEffect(() => {
     let active = true;
@@ -177,13 +96,30 @@ export function CharacterEditor({
 
   if (isLoading) {
     return (
-      <Flex
-        className="characters-editor-empty"
-        align="center"
-        justify="center"
-      >
-        <Spinner size={18} />
-      </Flex>
+      <Box className="characters-editor-loading">
+        <Flex
+          className="characters-editor-loading-content"
+          direction="column"
+          gap="4"
+        >
+          <Skeleton
+            width="100%"
+            height="36px"
+          />
+          <Skeleton
+            width="100%"
+            height="36px"
+          />
+          <Skeleton
+            width="100%"
+            height="200px"
+          />
+          <Skeleton
+            width="100%"
+            height="80px"
+          />
+        </Flex>
+      </Box>
     );
   }
 
@@ -219,6 +155,7 @@ export function CharacterEditor({
       onContentChange={handleContentChange}
       onSave={handleSave}
       isSaving={isSaving}
+      isSaveBlocked={isSaveBlocked}
       hasChanges={hasChanges}
       placeholder={t("characters.descriptionPlaceholder")}
       titlePlaceholder={t("characters.namePlaceholder")}

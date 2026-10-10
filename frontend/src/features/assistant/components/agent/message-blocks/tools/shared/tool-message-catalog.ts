@@ -4,6 +4,8 @@ export const REGISTERED_TOOL_NAMES = [
   "notify_subagent",
   "recycle_subagent",
   "ask_user",
+  "list_file",
+  "read_file",
   "read_chapter",
   "read_shared_chapters",
   "write_chapter",
@@ -31,6 +33,10 @@ export const REGISTERED_TOOL_NAMES = [
   "create_character",
   "edit_character",
   "delete_character",
+  "query_character_relationships",
+  "create_character_relationship",
+  "edit_character_relationship",
+  "delete_character_relationship",
   "list_world_entries",
   "read_world_entry",
   "create_world_entry",
@@ -51,6 +57,7 @@ export type ToolContentMode = "expandable" | "static" | "hidden";
 export type ToolGroup =
   | "orchestration"
   | "interaction"
+  | "file"
   | "chapter"
   | "note"
   | "volume"
@@ -103,6 +110,20 @@ export const TOOL_DESCRIPTOR_META = {
     tag: "clarification",
     isExplore: false,
     contentMode: "expandable",
+  },
+  list_file: {
+    toolName: "list_file",
+    group: "file",
+    tag: "list",
+    isExplore: true,
+    contentMode: "hidden",
+  },
+  read_file: {
+    toolName: "read_file",
+    group: "file",
+    tag: "read",
+    isExplore: true,
+    contentMode: "hidden",
   },
   read_chapter: {
     toolName: "read_chapter",
@@ -179,7 +200,7 @@ export const TOOL_DESCRIPTOR_META = {
     group: "note",
     tag: "move",
     isExplore: false,
-    contentMode: "static",
+    contentMode: "hidden",
   },
   create_note_category: {
     toolName: "create_note_category",
@@ -290,6 +311,34 @@ export const TOOL_DESCRIPTOR_META = {
     toolName: "delete_character",
     group: "context",
     tag: "character-delete",
+    isExplore: false,
+    contentMode: "hidden",
+  },
+  query_character_relationships: {
+    toolName: "query_character_relationships",
+    group: "context",
+    tag: "character-relationship-query",
+    isExplore: true,
+    contentMode: "hidden",
+  },
+  create_character_relationship: {
+    toolName: "create_character_relationship",
+    group: "context",
+    tag: "character-relationship-create",
+    isExplore: false,
+    contentMode: "hidden",
+  },
+  edit_character_relationship: {
+    toolName: "edit_character_relationship",
+    group: "context",
+    tag: "character-relationship-edit",
+    isExplore: false,
+    contentMode: "hidden",
+  },
+  delete_character_relationship: {
+    toolName: "delete_character_relationship",
+    group: "context",
+    tag: "character-relationship-delete",
     isExplore: false,
     contentMode: "hidden",
   },

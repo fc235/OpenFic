@@ -1,0 +1,177 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import React from "react";
+      import { createRoot } from "react-dom/client";
+      import { Theme } from "@radix-ui/themes";
+      import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+      import { MemoryRouter, Routes, Route } from "react-router";
+      import { AppShellContext } from "../src/features/app-shell/components/app-shell-context";
+      import { WritingPage } from "../src/features/writing/pages/writing-page";
+      import { ToolMessage } from "../src/features/assistant/components/agent/message-blocks/messages/tool/tool-message";
+      import { useTabsStore } from "../src/features/writing/store/use-tabs-store";
+      import { useChapterNavigationStore } from "../src/features/writing/store/use-chapter-navigation-store";
+      import { Toaster } from "../src/components/toaster";
+      import "@radix-ui/themes/styles.css";
+      import "../src/styles/overrides/tiptap.css";
+      import "../src/i18n";
+
+      const h = React.createElement;
+      const noop = () => {};
+      useTabsStore.setState({
+        currentProjectId: "p",
+        isLoaded: true,
+        tabs: [
+          {
+            id: "chapter:a",
+            refId: "a",
+            type: "chapter",
+            title: "Chapter A",
+            scrollTop: 0,
+            isLocked: false,
+          },
+        ],
+        activeTabId: "chapter:a",
+      });
+      window.navigationStore = useChapterNavigationStore;
+      window.tabsStore = useTabsStore;
+      const messages = [
+        {
+          id: "edit",
+          toolName: "edit_chapter",
+          toolResult: {
+            data: {
+              chapter: { id: "b", title: "Chapter B" },
+              metadata: {
+                chapter_diff: {
+                  chapter_id: "b",
+                  operation: "update",
+                  sections: [
+                    {
+                      type: "content",
+                      lines: [
+                        {
+                          type: "context",
+                          before_line_number: 24,
+                          after_line_number: 24,
+                          text: "paragraph 24",
+                        },
+                        {
+                          type: "removed",
+                          before_line_number: 25,
+                          after_line_number: null,
+                          text: "deleted paragraph",
+                        },
+                        {
+                          type: "added",
+                          before_line_number: null,
+                          after_line_number: 25,
+                          text: "paragraph 25",
+                        },
+                        {
+                          type: "added",
+                          before_line_number: null,
+                          after_line_number: 60,
+                          text: "paragraph 60",
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          id: "read",
+          toolName: "read_chapter",
+          toolResult: { data: { chapter: { id: "a", title: "Chapter A" } } },
+        },
+        {
+          id: "create",
+          toolName: "write_chapter",
+          toolResult: { data: { chapter: { id: "b", title: "Chapter B" } } },
+        },
+        {
+          id: "missing",
+          toolName: "edit_chapter",
+          toolResult: { data: { chapter: { id: "missing", title: "Deleted chapter" } } },
+        },
+        {
+          id: "other",
+          toolName: "edit_chapter",
+          toolResult: { data: { chapter: { id: "other", title: "Other project" } } },
+        },
+      ].map((message) => ({
+        ...message,
+        type: "tool_result",
+        status: "completed",
+        timestamp: Date.now(),
+      }));
+
+      const shell = {
+        isMobile: innerWidth < 768,
+        isSidebarOpen: false,
+        isSettingsOpen: false,
+        openSidebar: noop,
+        closeSidebar: noop,
+        toggleSidebar: noop,
+        openSettings: noop,
+        closeSettings: noop,
+        appendToAssistant: noop,
+        isAssistantSidebarOpen: true,
+        openAssistantSidebar: noop,
+        closeAssistantSidebar: () => {
+          window.assistantClosed = true;
+        },
+        registerAssistantSidebarHost: (registration) => {
+          window.assistantRegistration = registration;
+        },
+        clearAssistantSidebarHost: noop,
+      };
+      function App() {
+        return h(
+          React.Fragment,
+          null,
+          h(
+            "div",
+            { style: { height: "58vh", minHeight: 280 }, "data-testid": "writing" },
+            h(WritingPage),
+          ),
+          h(
+            "div",
+            { style: { padding: 12 }, "data-testid": "tools" },
+            messages.map((message) =>
+              h("div", { key: message.id, "data-testid": message.id }, h(ToolMessage, { message })),
+            ),
+          ),
+          h(Toaster),
+        );
+      }
+      createRoot(document.getElementById("root")).render(
+        h(
+          Theme,
+          null,
+          h(
+            QueryClientProvider,
+            { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+            h(
+              AppShellContext.Provider,
+              { value: shell },
+              h(
+                MemoryRouter,
+                { initialEntries: ["/projects/p"] },
+                h(Routes, null, h(Route, { path: "/projects/:projectId", element: h(App) })),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

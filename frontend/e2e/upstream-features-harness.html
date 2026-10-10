@@ -1,0 +1,166 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import React from "react";
+      import { createRoot } from "react-dom/client";
+      import { Theme } from "@radix-ui/themes";
+      import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+      import { AppShellContext } from "../src/features/app-shell/components/app-shell-context";
+      import { AgentInput } from "../src/features/assistant/components/agent/agent-input";
+      import { AgentSessionChangesDialog } from "../src/features/assistant/components/agent/agent-changes";
+      import { useAgentSidebar } from "../src/features/assistant/components/agent/agent-sidebar";
+      import { CharacterGraphView } from "../src/features/characters/components/character-graph";
+      import { ContextSettings } from "../src/features/settings/components/context-settings";
+      import { ConnectionsSettings } from "../src/features/settings/components/connections-settings";
+      import { fetchAgentSessionChangeSummary } from "../src/lib/api-client";
+      import i18n from "../src/i18n";
+      import "@radix-ui/themes/styles.css";
+      import "../src/styles/base.css";
+      import "../src/styles/overrides/tiptap.css";
+      import "../src/features/assistant/components/assistant-sidebar.css";
+
+      const h = React.createElement;
+      const noop = () => {};
+      const mode = new URLSearchParams(location.search).get("mode") ?? "input";
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      window.queryClient = queryClient;
+      window.openficDesktopHost = {
+        publishAppearance: noop,
+        publishLanguage: noop,
+        publishSocketDiagnostic: noop,
+        openOpenAICodexAuthorization: async (url) => {
+          window.authorizationUrl = url;
+        },
+      };
+      const shell = {
+        isMobile: false,
+        isSidebarOpen: false,
+        isSettingsOpen: false,
+        isAssistantSidebarOpen: false,
+        openSidebar: noop,
+        closeSidebar: noop,
+        toggleSidebar: noop,
+        openSettings: noop,
+        closeSettings: noop,
+        appendToAssistant: noop,
+        openAssistantSidebar: noop,
+        closeAssistantSidebar: noop,
+        registerAssistantSidebarHost: noop,
+        clearAssistantSidebarHost: noop,
+      };
+
+      function InputHarness() {
+        const [value, setValue] = React.useState("");
+        const [attachments, setAttachments] = React.useState([]);
+        window.inputValue = value;
+        window.attachments = attachments;
+        const upload = async (files) =>
+          setAttachments((current) => [
+            ...current,
+            ...files.map((file, index) => ({
+              id: `${file.name}-${index}`,
+              file,
+              previewUrl: "",
+              status: "pending",
+            })),
+          ]);
+        return h(
+          "div",
+          { style: { width: 720, height: 800, display: "flex", alignItems: "end" } },
+          h(AgentInput, {
+            projectId: "p",
+            value,
+            onChange: setValue,
+            attachments,
+            onAttachmentsChange: setAttachments,
+            onUploadAttachments: upload,
+            modelId: "m",
+            models: [{ value: "m", id: "m", name: "Test model", taskType: "llm" }],
+            agentKey: "build",
+            agentOptions: [{ value: "build", label: "Build" }],
+            isSending: false,
+            disabled: false,
+            isModelsLoading: false,
+            modelsError: false,
+            onSend: noop,
+            onAbort: noop,
+            onModelChange: noop,
+            onGoToSettings: noop,
+          }),
+        );
+      }
+
+      function HistoryHarness() {
+        const sidebar = useAgentSidebar({
+          projectId: "p",
+          modelId: "m",
+          inputValue: "",
+          attachments: [],
+          onClearInput: noop,
+          onClearAttachments: noop,
+        });
+        const [open, setOpen] = React.useState(false);
+        window.loadSession = async (sessionId = "s") => {
+          const changes = await fetchAgentSessionChangeSummary(sessionId);
+          sidebar.loadSession(sessionId, [], { reconnect: false, initialChanges: changes });
+        };
+        window.sessionId = sidebar.sessionId;
+        return h(
+          React.Fragment,
+          null,
+          h("button", { onClick: () => setOpen(true) }, "Inspect revision"),
+          h(AgentSessionChangesDialog, {
+            changes: sidebar.changes,
+            details: sidebar.changeDetails,
+            detailsRevisionId: sidebar.changeDetailsRevisionId,
+            onLoadDetails: sidebar.loadChangeDetails,
+            revisionId: "r1",
+            open,
+            onOpenChange: setOpen,
+          }),
+        );
+      }
+
+      function Harness() {
+        if (mode === "context") return h(ContextSettings);
+        if (mode === "connections")
+          return h(ConnectionsSettings, {
+            isAgentSettingsLocked: false,
+            isAgentSettingsLockLoading: false,
+          });
+        if (mode === "graph")
+          return h(
+            "div",
+            { style: { width: 900, height: 700 } },
+            h(CharacterGraphView, {
+              projectId: "p",
+              isLocked: false,
+              onSelectCharacter: (id) => {
+                window.selectedCharacter = id;
+              },
+            }),
+          );
+        if (mode === "history") return h(HistoryHarness);
+        return h(InputHarness);
+      }
+
+      await i18n.changeLanguage("en");
+      createRoot(document.getElementById("root")).render(
+        h(
+          Theme,
+          null,
+          h(
+            QueryClientProvider,
+            { client: queryClient },
+            h(AppShellContext.Provider, { value: shell }, h(Harness)),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

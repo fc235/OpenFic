@@ -62,6 +62,9 @@ contextBridge.exposeInMainWorld("openficDesktopHost", {
   saveDesktopPreferences: (patch: unknown) => ipcRenderer.invoke("desktop:preferences:save", patch),
   notifySessionCompleted: (payload: unknown): Promise<boolean> =>
     ipcRenderer.invoke("notification:session-completed", payload),
+  openOpenAICodexAuthorization: (url: string): Promise<void> => {
+    return ipcRenderer.invoke("auth:open-openai-codex-authorization", url);
+  },
   publishAppearance: (payload: unknown): void => {
     ipcRenderer.sendToHost("openfic:appearance", payload);
   },

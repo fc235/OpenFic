@@ -1,11 +1,11 @@
 """Agent 运行时消息持久化的 CRUD。"""
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import cast
 
-from sqlalchemy import delete, func, or_, select, true
+from sqlalchemy import and_, delete, func, or_, select, true
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
@@ -248,12 +248,106 @@ async def session_has_tool_names(
     return result.scalar_one_or_none() is not None
 
 
+async def mark_tool_messages_pruned(
+    session: AsyncSession,
+    *,
+    session_id: str,
+    tool_call_ids: Sequence[str],
+    revision_id: str | None = None,
+) -> int:
+    """标记工具消息已从模型上下文裁剪，但保留原始正文。"""
+    normalized_ids = list(dict.fromkeys(tool_call_id for tool_call_id in tool_call_ids if tool_call_id))
+    if not normalized_ids:
+        return 0
+
+    try:
+        result = await session.execute(
+            select(AgentRunMessage).where(
+                col(AgentRunMessage.session_id) == session_id,
+                col(AgentRunMessage.role) == "tool",
+                col(AgentRunMessage.tool_call_id).in_(normalized_ids),
+            )
+        )
+        marked = 0
+        for row in result.scalars().all():
+            try:
+                metadata = json.loads(row.message_metadata or "{}")
+            except (TypeError, ValueError):
+                metadata = {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            if metadata.get("pruned") is True:
+                continue
+            metadata["pruned"] = True
+            if revision_id:
+                metadata["pruned_revision_id"] = revision_id
+            row.message_metadata = json.dumps(metadata, ensure_ascii=False)
+            row.updated_at = datetime.now(UTC)
+            session.add(row)
+            marked += 1
+        if marked:
+            await session.commit()
+        return marked
+    except SQLAlchemyError as e:
+        await session.rollback()
+        raise PersistenceWriteError(
+            f"mark_tool_messages_pruned failed for session {session_id}"
+        ) from e
+
+
+async def clear_tool_message_prune_marks(
+    session: AsyncSession,
+    *,
+    session_id: str,
+    revision_ids: Sequence[str],
+) -> int:
+    """清除指定 revision 创建的 prune 标记，保留工具消息正文。"""
+    normalized_ids = {
+        revision_id for revision_id in revision_ids if revision_id
+    }
+    if not normalized_ids:
+        return 0
+
+    try:
+        result = await session.execute(
+            select(AgentRunMessage).where(
+                col(AgentRunMessage.session_id) == session_id,
+                col(AgentRunMessage.role) == "tool",
+            )
+        )
+        cleared = 0
+        for row in result.scalars().all():
+            try:
+                metadata = json.loads(row.message_metadata or "{}")
+            except (TypeError, ValueError):
+                metadata = {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            if metadata.get("pruned_revision_id") not in normalized_ids:
+                continue
+            metadata.pop("pruned", None)
+            metadata.pop("pruned_revision_id", None)
+            row.message_metadata = json.dumps(metadata, ensure_ascii=False)
+            row.updated_at = datetime.now(UTC)
+            session.add(row)
+            cleared += 1
+        if cleared:
+            await session.flush()
+        return cleared
+    except SQLAlchemyError as e:
+        await session.rollback()
+        raise PersistenceWriteError(
+            f"clear_tool_message_prune_marks failed for session {session_id}"
+        ) from e
+
+
 async def list_by_sessions(
     session: AsyncSession,
     session_ids: Sequence[str],
     *,
     roles: Sequence[str] | None = None,
     tool_names: Sequence[str] | None = None,
+    seq_bounds: Mapping[str, tuple[int | None, int | None]] | None = None,
 ) -> dict[str, list[PersistedMessage]]:
     """按 session 批量加载消息，并在内存中按 session 分组。"""
     normalized_ids = list(dict.fromkeys(session_id for session_id in session_ids if session_id))
@@ -263,9 +357,21 @@ async def list_by_sessions(
     if not normalized_ids:
         return {}
     try:
-        query = select(AgentRunMessage).where(
-            col(AgentRunMessage.session_id).in_(normalized_ids)
-        )
+        if seq_bounds:
+            session_scopes = []
+            for session_id in normalized_ids:
+                scope = [col(AgentRunMessage.session_id) == session_id]
+                start_seq, end_seq = seq_bounds.get(session_id, (None, None))
+                if start_seq is not None:
+                    scope.append(col(AgentRunMessage.seq) >= start_seq)
+                if end_seq is not None:
+                    scope.append(col(AgentRunMessage.seq) < end_seq)
+                session_scopes.append(and_(*scope))
+            query = select(AgentRunMessage).where(or_(*session_scopes))
+        else:
+            query = select(AgentRunMessage).where(
+                col(AgentRunMessage.session_id).in_(normalized_ids)
+            )
         if roles and normalized_tool_names:
             query = query.where(
                 or_(

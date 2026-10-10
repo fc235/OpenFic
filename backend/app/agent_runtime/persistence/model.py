@@ -43,7 +43,7 @@ class AgentRunMessage(SQLModel, table=True):
 
 
 class AgentAttachment(SQLModel, table=True):
-    """Agent 用户消息的图片附件。"""
+    """Agent 用户消息附件及其提取后的文本内容。"""
 
     __tablename__ = "agent_attachments"
 
@@ -55,8 +55,11 @@ class AgentAttachment(SQLModel, table=True):
     file_name: str = Field(max_length=255)
     mime_type: str = Field(max_length=50)
     size_bytes: int = Field(ge=0)
-    width: int = Field(ge=1)
-    height: int = Field(ge=1)
+    content: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    content_length: int = Field(default=0, ge=0)
+    line_count: int = Field(default=0, ge=0)
+    width: int | None = Field(default=None, ge=1)
+    height: int | None = Field(default=None, ge=1)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)
 
 
@@ -118,6 +121,7 @@ class AgentDefinitionRecord(SQLModel, table=True):
     kind: str = Field(index=True, max_length=20)
     prompt_agent_name: str = Field(max_length=50)
     model_id: str | None = Field(default=None, max_length=100)
+    reasoning_effort: str | None = Field(default=None, max_length=10)
     enabled_tool_categories: list[str] = Field(
         default_factory=list,
         sa_column=Column(JSON, nullable=False, default=list),
@@ -147,6 +151,18 @@ class AgentChildRun(SQLModel, table=True):
     """Child LangGraph run tracked under a parent agent session."""
 
     __tablename__ = "agent_child_runs"
+    __table_args__ = (
+        Index(
+            "ix_agent_child_runs_parent_session_id_created_at",
+            "parent_session_id",
+            "created_at",
+        ),
+        Index(
+            "ix_agent_child_runs_parent_session_id_parent_revision_id",
+            "parent_session_id",
+            "parent_revision_id",
+        ),
+    )
 
     id: str = Field(default_factory=generate_id, primary_key=True)
     parent_session_id: str = Field(index=True, max_length=64)
@@ -194,6 +210,13 @@ class AgentChildRunRequest(SQLModel, table=True):
     """Queued turn request bound to a persistent child thread."""
 
     __tablename__ = "agent_child_run_requests"
+    __table_args__ = (
+        Index(
+            "ix_agent_child_run_requests_child_run_id_seq",
+            "child_run_id",
+            "seq",
+        ),
+    )
 
     id: str = Field(default_factory=generate_id, primary_key=True)
     child_run_id: str = Field(index=True, foreign_key="agent_child_runs.id", max_length=64)

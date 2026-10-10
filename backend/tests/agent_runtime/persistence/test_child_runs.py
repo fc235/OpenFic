@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +13,7 @@ from app.agent_runtime.persistence.child_runs import (
     get_child_run_by_pending_approval,
     get_latest_child_run_requests,
     get_waiting_child_run_for_tool_call,
+    list_descendant_child_runs,
     list_child_runs_for_parent,
     list_child_runs_for_parents,
     record_child_run_pending_approval,
@@ -54,6 +57,42 @@ async def test_create_child_run_persists_parent_and_child_thread_boundary(
     assert persisted is not None
     assert persisted.parent_session_id == "parent-session"
     assert persisted.child_thread_id == "child-thread"
+
+
+@pytest.mark.asyncio
+async def test_list_descendant_child_runs_loads_nested_runs_in_one_query(
+    db_session: AsyncSession,
+    sample_task,
+):
+    await create_child_run(
+        db_session,
+        parent_session_id="parent-session",
+        parent_task_id=sample_task.id,
+        parent_thread_id="parent-thread",
+        child_thread_id="child-thread",
+        agent_key="writer",
+        dispatch_id="dispatch-1",
+        tool_call_id="tool-call-1",
+        request={"goal": "write"},
+    )
+    await create_child_run(
+        db_session,
+        parent_session_id="child-thread",
+        parent_task_id=sample_task.id,
+        parent_thread_id="child-thread",
+        child_thread_id="grandchild-thread",
+        agent_key="reviewer",
+        dispatch_id="dispatch-2",
+        tool_call_id="tool-call-2",
+        request={"goal": "review"},
+    )
+
+    descendants = await list_descendant_child_runs(db_session, "parent-session")
+
+    assert {run.child_thread_id for run in descendants} == {
+        "child-thread",
+        "grandchild-thread",
+    }
 
 
 @pytest.mark.asyncio
@@ -412,10 +451,24 @@ async def test_rollback_child_runs_restores_notify_request_to_previous_completed
                 session_id="child-thread",
                 task_id=sample_task.id,
                 project_id=sample_task.project_id,
+                role="tool",
+                content="第一轮工具结果",
+                status="complete",
+                tool_call_id="old-tool-call",
+                tool_name="read_chapter",
+                message_metadata=json.dumps(
+                    {"pruned": True, "pruned_revision_id": "rev-2"}
+                ),
+                seq=1,
+            ),
+            AgentRunMessage(
+                session_id="child-thread",
+                task_id=sample_task.id,
+                project_id=sample_task.project_id,
                 role="assistant",
                 content="第一轮结果",
                 status="complete",
-                seq=1,
+                seq=2,
             ),
         ]
     )
@@ -432,7 +485,7 @@ async def test_rollback_child_runs_restores_notify_request_to_previous_completed
         content="第二轮任务",
         parent_revision_id="rev-2",
         child_user_message_id="child-user-2",
-        child_user_message_seq=2,
+        child_user_message_seq=3,
         pre_request_checkpoint_id="cp-before-notify",
     )
     db_session.add_all(
@@ -445,7 +498,7 @@ async def test_rollback_child_runs_restores_notify_request_to_previous_completed
                 content="第二轮任务",
                 status="sent",
                 message_type="user_request",
-                seq=2,
+                seq=3,
             ),
             AgentRunMessage(
                 session_id="child-thread",
@@ -454,7 +507,7 @@ async def test_rollback_child_runs_restores_notify_request_to_previous_completed
                 role="assistant",
                 content="第二轮结果",
                 status="complete",
-                seq=3,
+                seq=4,
             ),
         ]
     )
@@ -486,7 +539,12 @@ async def test_rollback_child_runs_restores_notify_request_to_previous_completed
     assert restored.last_assistant_content == "第一轮结果"
     assert rolled_back_request is not None
     assert rolled_back_request.status == "cancelled"
-    assert [message.content for message in messages] == ["第一轮任务", "第一轮结果"]
+    assert [message.content for message in messages] == [
+        "第一轮任务",
+        "第一轮工具结果",
+        "第一轮结果",
+    ]
+    assert json.loads(messages[1].message_metadata or "{}") == {}
 
 @pytest.mark.asyncio
 async def test_hidden_system_reminder_remains_visible_to_llm_history(

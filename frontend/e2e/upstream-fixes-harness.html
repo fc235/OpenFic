@@ -1,0 +1,150 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import React from "react";
+      import { createRoot } from "react-dom/client";
+      import { MemoryRouter } from "react-router";
+      import { Theme } from "@radix-ui/themes";
+      import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+      import { AppShellContext } from "../src/features/app-shell/components/app-shell-context";
+      import { MarkdownEditor } from "../src/components/markdown-editor";
+      import { CharacterEditor } from "../src/features/characters/components/character-editor";
+      import { CharactersPage } from "../src/features/characters/pages/characters-page";
+      import { useCharactersStore } from "../src/features/characters/store/use-characters-store";
+      import { EntryEditor } from "../src/features/world-info/components/entry-editor";
+      import { AgentComposerEditor } from "../src/features/assistant/components/agent/agent-composer-editor";
+      import "@radix-ui/themes/styles.css";
+      import "../src/styles/overrides/tiptap.css";
+      import "../src/i18n";
+
+      const h = React.createElement;
+      const noop = () => {};
+      const params = new URLSearchParams(location.search);
+      const mode = params.get("mode") ?? "character";
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      window.queryClient = queryClient;
+      if (mode === "characters-page")
+        useCharactersStore.setState({ currentProjectId: "p", currentCharacterId: "a" });
+      window.saves = [];
+      window.pendingSaves = [];
+      window.submitCount = 0;
+      window.holdSaves = false;
+      window.failSaves = false;
+      window.canSave = true;
+      const initial = { id: "a", name: "Alice", description: "first\n\nsecond" };
+
+      function Harness() {
+        const [selected, select] = React.useState("a");
+        const [characters, setCharacters] = React.useState({
+          a: initial,
+          b: { ...initial, id: "b", name: "Bob" },
+        });
+        const [locked, setLocked] = React.useState(false);
+        const [content, setContent] = React.useState(initial.description);
+        const editorRef = React.useRef(null);
+        window.selectEntity = select;
+        window.setLocked = setLocked;
+        window.setRemoteContent = setContent;
+        window.getEditor = () => editorRef.current;
+        const { data: entry } = useQuery({
+          queryKey: ["world-info-entry-detail", selected],
+          queryFn: async () => queryClient.getQueryData(["world-info-entry-detail", selected]),
+          enabled: false,
+          initialData: {
+            id: selected,
+            worldInfoId: "w",
+            uid: 1,
+            order: 1,
+            name: selected === "a" ? "Alice" : "Bob",
+            content: initial.description,
+            tokenCount: 3,
+            isEnabled: true,
+            createdAt: "2026-10-09",
+            updatedAt: "2026-10-09",
+          },
+        });
+        const onSave = async (data) => {
+          const id = selected;
+          window.saves.push({ id, ...data });
+          if (window.holdSaves) await new Promise((resolve) => window.pendingSaves.push(resolve));
+          if (window.failSaves) throw new Error("save failed");
+          const updated = { ...characters[id], ...data };
+          setCharacters((current) => ({ ...current, [id]: updated }));
+          return updated;
+        };
+        const shell = {
+          isMobile: params.get("mobile") === "1",
+          isSidebarOpen: false,
+          isSettingsOpen: false,
+          isAssistantSidebarOpen: false,
+          openSidebar: noop,
+          closeSidebar: noop,
+          toggleSidebar: noop,
+          openSettings: noop,
+          closeSettings: noop,
+          appendToAssistant: noop,
+          openAssistantSidebar: noop,
+          closeAssistantSidebar: noop,
+          registerAssistantSidebarHost: noop,
+          clearAssistantSidebarHost: noop,
+        };
+        if (mode === "characters-page")
+          return h(
+            MemoryRouter,
+            null,
+            h(AppShellContext.Provider, { value: shell }, h(CharactersPage)),
+          );
+        if (mode === "world")
+          return h(EntryEditor, {
+            key: selected,
+            entry,
+            worldInfoId: "w",
+            entries: [
+              { id: "a", name: "Alice" },
+              { id: "b", name: "Bob" },
+            ],
+            isAgentLocked: locked,
+            canSave: () => window.canSave,
+          });
+        if (mode === "composer")
+          return h(
+            AppShellContext.Provider,
+            { value: shell },
+            h(AgentComposerEditor, {
+              projectId: "p",
+              value: content,
+              placeholder: "Message",
+              disabled: locked,
+              onChange: setContent,
+              onSubmit: () => window.submitCount++,
+            }),
+          );
+        if (mode === "markdown")
+          return h(MarkdownEditor, {
+            title: "Title",
+            onTitleChange: noop,
+            content,
+            onContentChange: setContent,
+            onSave: noop,
+            editorRef,
+          });
+        return h(CharacterEditor, {
+          key: selected,
+          character: characters[selected],
+          isAgentLocked: locked,
+          canSave: () => window.canSave,
+          onSave,
+        });
+      }
+
+      createRoot(document.getElementById("root")).render(
+        h(Theme, null, h(QueryClientProvider, { client: queryClient }, h(Harness))),
+      );
+    </script>
+  </body>
+</html>

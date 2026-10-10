@@ -11,6 +11,7 @@ import {
   type ChapterDiffSection,
   type ChapterDiffSectionType,
 } from "@/features/assistant/lib/chapter-tool-preview";
+import { getChapterLineTarget } from "@/features/writing/lib/chapter-navigation";
 import i18n from "@/i18n";
 import type { AgentMessage } from "@/lib/agent.types";
 
@@ -23,6 +24,7 @@ import {
   MessageExpandButton,
 } from "../../shared/message-shell";
 import { joinClassNames } from "../../shared/message-shell-utils";
+import { ChapterNavigationButton } from "../../tools/chapter/chapter-navigation-button";
 import { getToolDescriptor } from "../../tools/shared/tool-message-registry";
 import { UnregisteredToolMessage } from "../../tools/shared/tool-message-status";
 import {
@@ -219,6 +221,10 @@ export function ToolMessage({ message }: ToolMessageProps) {
     chapterDiffBodySection ?? noteDiffBodySection ?? worldEntryDiffBodySection;
   const diffChangeSummary = summarizeChapterDiffSection(diffBodySection);
   const chapter = getChapterPayload(message);
+  const navigableChapterId =
+    message.toolName === "edit_chapter" && !isRunning && !errorMessage
+      ? chapter.chapter_id
+      : undefined;
   const note = isNoteDiffTool(message) ? getNotePayload(message) : null;
   const worldEntry = isWorldEntryDiffTool(message) ? getWorldEntryPayload(message) : null;
   const showCollapsedDiffMeta = usesDiffHeader && !isExpanded;
@@ -318,17 +324,23 @@ export function ToolMessage({ message }: ToolMessageProps) {
             {title}
           </Text>
           {!usesDiffHeader && visibilityState.showDetail && detail ? (
-            <Text
-              size="1"
-              color="gray"
-              className={joinClassNames(
-                "agent-tool-detail",
-                "agent-message-shell-detail",
-                visibilityState.showErrorIndicator && "agent-message-shell-detail--error",
-              )}
-            >
-              {detail}
-            </Text>
+            navigableChapterId ? (
+              <ChapterNavigationButton chapterId={navigableChapterId}>
+                {detail}
+              </ChapterNavigationButton>
+            ) : (
+              <Text
+                size="1"
+                color="gray"
+                className={joinClassNames(
+                  "agent-tool-detail",
+                  "agent-message-shell-detail",
+                  visibilityState.showErrorIndicator && "agent-message-shell-detail--error",
+                )}
+              >
+                {detail}
+              </Text>
+            )
           ) : null}
           {showMeta ? (
             <MessageBlockMeta>
@@ -356,13 +368,22 @@ export function ToolMessage({ message }: ToolMessageProps) {
                         className="agent-chapter-tool-meta-content"
                       >
                         {diffDetail ? (
-                          <Text
-                            size="1"
-                            color="gray"
-                            className="agent-tool-detail agent-message-shell-detail"
-                          >
-                            {diffDetail}
-                          </Text>
+                          navigableChapterId ? (
+                            <ChapterNavigationButton
+                              chapterId={navigableChapterId}
+                              target={getChapterLineTarget(chapterDiffBodySection?.lines ?? [])}
+                            >
+                              {diffDetail}
+                            </ChapterNavigationButton>
+                          ) : (
+                            <Text
+                              size="1"
+                              color="gray"
+                              className="agent-tool-detail agent-message-shell-detail"
+                            >
+                              {diffDetail}
+                            </Text>
+                          )
                         ) : null}
                         <Flex
                           align="center"
@@ -400,6 +421,12 @@ export function ToolMessage({ message }: ToolMessageProps) {
                 />
               ) : null}
             </MessageBlockMeta>
+          ) : null}
+          {navigableChapterId ? (
+            <ChapterNavigationButton
+              chapterId={navigableChapterId}
+              target={getChapterLineTarget(chapterDiffBodySection?.lines ?? [])}
+            />
           ) : null}
         </MessageBlockHeaderMain>
       </MessageBlockHeader>

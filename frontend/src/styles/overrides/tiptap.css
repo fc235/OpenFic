@@ -85,6 +85,26 @@
   }
 }
 
+.tiptap-editor [data-chapter-navigation-highlight="true"] {
+  animation: chapter-navigation-highlight 1.8s ease-out;
+}
+
+@keyframes chapter-navigation-highlight {
+  from {
+    background-color: var(--accent-a5);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tiptap-editor [data-chapter-navigation-highlight="true"] {
+    animation: none;
+    background-color: var(--accent-a5);
+  }
+}
+
 .tiptap-editor p {
   margin-bottom: 1em;
 }

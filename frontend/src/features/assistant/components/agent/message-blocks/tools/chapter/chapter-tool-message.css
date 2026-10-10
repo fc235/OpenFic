@@ -162,3 +162,31 @@
   font-size: var(--font-size-sm);
   line-height: 1.55;
 }
+
+.agent-chapter-navigation-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--gray-12);
+  text-align: start;
+  cursor: pointer;
+}
+
+.agent-chapter-navigation-link:hover {
+  text-decoration: underline;
+}
+
+.agent-chapter-diff-line[role="button"] {
+  cursor: pointer;
+}
+
+.agent-chapter-diff-line[role="button"]:hover {
+  box-shadow: inset 3px 0 var(--accent-9);
+}
+
+.agent-chapter-navigation-link:focus-visible,
+.agent-chapter-diff-line[role="button"]:focus-visible {
+  outline: 2px solid var(--accent-9);
+  outline-offset: -2px;
+}

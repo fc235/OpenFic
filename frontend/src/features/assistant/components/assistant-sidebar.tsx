@@ -31,6 +31,7 @@ import { useAppShell } from "@/features/app-shell";
 import { appendMentionMarkup } from "@/features/assistant/lib/mention-text";
 import { fetchAgentDefinitions } from "@/features/settings/lib/agent-definitions-api";
 import { fetchSettings, updateSettings } from "@/features/settings/lib/settings-api";
+import type { Settings } from "@/features/settings/lib/settings.types";
 import { useSummaryPanel } from "@/features/writing/hooks/use-summaries";
 import { useVolumeTree } from "@/features/writing/hooks/use-volumes";
 import { getAgentDisplayDescription, getAgentIconColor } from "@/lib/agent-branding";
@@ -46,11 +47,12 @@ import type {
 } from "@/lib/agent.types";
 import {
   fetchActiveSubagents,
+  fetchAgentSessionChangeSummary,
   fetchAgentSessionState,
-  fetchAgentSessionChanges,
   fetchTask,
   subscribeBackgroundEvents,
 } from "@/lib/api-client";
+import { normalizeReasoningEffort, REASONING_EFFORT_VALUES } from "@/lib/reasoning-effort";
 import type { TaskListItem } from "@/lib/task.types";
 import { useLlmModelOptions } from "@/lib/use-llm-model-options";
 
@@ -59,8 +61,8 @@ import { useSubagentSession } from "../hooks/use-subagent-session";
 import { useTasks, useUpdateTask } from "../hooks/use-tasks";
 import {
   createRestoredPendingAgentAttachments,
-  type PendingAgentImageAttachment,
-} from "../lib/agent-image-attachments";
+  type PendingAgentAttachment,
+} from "../lib/agent-file-attachments";
 import { loadAgentTaskBundle } from "../lib/agent-task-bundle";
 import {
   createConversationStackState,
@@ -194,19 +196,32 @@ function buildSubagentChanges(
   };
 }
 
-function getStoredReasoningEffort(modelId: string): ReasoningEffort {
-  if (typeof window === "undefined" || !modelId) return "medium";
+function getStoredReasoningEffort(modelId: string): ReasoningEffort | null {
+  if (typeof window === "undefined" || !modelId) return null;
   try {
     const stored = JSON.parse(
       window.localStorage.getItem(ASSISTANT_REASONING_EFFORT_STORAGE_KEY) ?? "{}",
     ) as Record<string, string>;
     const value = stored[modelId];
-    return ["off", "low", "medium", "high", "xhigh", "max"].includes(value)
-      ? (value as ReasoningEffort)
-      : "medium";
+    if (value === "off" || REASONING_EFFORT_VALUES.includes(value as ReasoningEffort)) {
+      return normalizeReasoningEffort(value);
+    }
+    return null;
   } catch {
-    return "medium";
+    return null;
   }
+}
+
+function getInitialReasoningEffort(modelId: string, settings?: Settings): ReasoningEffort {
+  const stored = getStoredReasoningEffort(modelId);
+  if (stored) return stored;
+  if (modelId && modelId === settings?.defaultModel) {
+    return settings.defaultModelReasoningEffort;
+  }
+  if (modelId && modelId === settings?.lightModel) {
+    return settings.lightModelReasoningEffort;
+  }
+  return "medium";
 }
 
 function getSubagentStatusLabel(
@@ -307,15 +322,22 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
     );
     const [activeSubagents, setActiveSubagents] = useState<ActiveSubagentState[]>([]);
     const [inputValue, setInputValue] = useState("");
-    const [pendingAttachments, setPendingAttachments] = useState<PendingAgentImageAttachment[]>([]);
+    const [pendingAttachments, setPendingAttachments] = useState<PendingAgentAttachment[]>([]);
     const [view, setView] = useState<AssistantView>("tasks");
     const [isSessionChangesOpen, setIsSessionChangesOpen] = useState(false);
     const [sessionChangesDialogSummary, setSessionChangesDialogSummary] =
       useState<AgentChangeSummary | null>(null);
-    const handleOpenChangeSummary = useCallback((summary: AgentChangeSummary) => {
-      setSessionChangesDialogSummary(summary);
-      setIsSessionChangesOpen(true);
-    }, []);
+    const [sessionChangesDialogRevisionId, setSessionChangesDialogRevisionId] = useState<
+      string | null
+    >(null);
+    const handleOpenChangeSummary = useCallback(
+      (summary: AgentChangeSummary, revisionId?: string) => {
+        setSessionChangesDialogSummary(summary);
+        setSessionChangesDialogRevisionId(revisionId ?? null);
+        setIsSessionChangesOpen(true);
+      },
+      [],
+    );
     const [isLoadingTask, setIsLoadingTask] = useState(false);
     const [currentTaskTitle, setCurrentTaskTitle] = useState<string>("");
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
@@ -407,7 +429,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
       [effectiveModelId, llmModelOptions],
     );
     const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(() =>
-      getStoredReasoningEffort(effectiveModelId),
+      getInitialReasoningEffort(effectiveModelId, settings),
     );
     const isToolApprovalBypassEnabled = settings?.agentBypassToolApproval ?? false;
     const agentSidebarRef = useRef<ReturnType<typeof useAgentSidebar> | null>(null);
@@ -437,8 +459,15 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
     }, [selectedAgentKey]);
 
     useEffect(() => {
-      setReasoningEffort(getStoredReasoningEffort(effectiveModelId));
-    }, [effectiveModelId]);
+      setReasoningEffort(getInitialReasoningEffort(effectiveModelId, settings));
+    }, [
+      effectiveModelId,
+      settings?.defaultModel,
+      settings?.defaultModelReasoningEffort,
+      settings?.lightModel,
+      settings?.lightModelReasoningEffort,
+      settings,
+    ]);
 
     const handleAgentTaskTitleUpdated = useCallback(
       (taskId: string, title: string, updatedAt?: string) => {
@@ -496,7 +525,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
             return;
           }
           const sessionId = fullTask.agentSessionId;
-          const sessionChanges = await fetchAgentSessionChanges(sessionId);
+          const sessionChanges = await fetchAgentSessionChangeSummary(sessionId);
           agentSidebarRef.current?.loadSession(sessionId, agentMessages, {
             reconnect: false,
             isRemoteRunning: false,
@@ -939,7 +968,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
               ),
             fetchAgentSessionState,
             fetchActiveSubagents,
-            fetchAgentSessionChanges,
+            fetchAgentSessionChangeSummary,
           });
           const fullTask = bundle.task;
 
@@ -1200,6 +1229,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
     const handleOpenSessionChanges = useCallback(() => {
       if (!canOpenSessionChanges) return;
       setSessionChangesDialogSummary(null);
+      setSessionChangesDialogRevisionId(null);
       setIsSessionChangesOpen(true);
     }, [canOpenSessionChanges]);
 
@@ -1465,24 +1495,28 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
                     <FileDiff size={16} />
                   </IconButton>
                 </Tooltip>
-                <IconButton
-                  variant="ghost"
-                  color="gray"
-                  size="1"
-                  onClick={openAllTasks}
-                  aria-label={t("assistant.history")}
-                >
-                  <History size={16} />
-                </IconButton>
-                <IconButton
-                  variant="ghost"
-                  color="gray"
-                  size="1"
-                  onClick={backToTaskList}
-                  aria-label={t("assistant.newTask")}
-                >
-                  <SquarePen size={16} />
-                </IconButton>
+                <Tooltip content={t("assistant.history")}>
+                  <IconButton
+                    variant="ghost"
+                    color="gray"
+                    size="1"
+                    onClick={openAllTasks}
+                    aria-label={t("assistant.history")}
+                  >
+                    <History size={16} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip content={t("assistant.newTask")}>
+                  <IconButton
+                    variant="ghost"
+                    color="gray"
+                    size="1"
+                    onClick={backToTaskList}
+                    aria-label={t("assistant.newTask")}
+                  >
+                    <SquarePen size={16} />
+                  </IconButton>
+                </Tooltip>
               </Flex>
             </Flex>
             <Flex
@@ -1722,6 +1756,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
                     id: uuidv4(),
                     file,
                     previewUrl: URL.createObjectURL(file),
+                    status: "pending" as const,
                   })),
                 ]);
               }}
@@ -1760,6 +1795,10 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
         <AgentSessionChangesDialog
           key={agentSidebar.sessionId ?? "no-session"}
           changes={agentSidebar.changes}
+          details={agentSidebar.changeDetails}
+          detailsRevisionId={agentSidebar.changeDetailsRevisionId}
+          onLoadDetails={agentSidebar.loadChangeDetails}
+          revisionId={sessionChangesDialogRevisionId}
           summaryOverride={sessionChangesDialogSummary}
           open={isSessionChangesOpen}
           onOpenChange={setIsSessionChangesOpen}

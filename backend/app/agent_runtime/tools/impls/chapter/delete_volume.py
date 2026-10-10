@@ -3,7 +3,12 @@ import json
 from pydantic import BaseModel, Field
 
 from app.agent_runtime.tools.base import AgentTool
-from app.agent_runtime.tools.impls.chapter.refs import VolumeRef, resolve_volume_from_list
+from app.agent_runtime.tools.errors import ToolExecutionError
+from app.agent_runtime.tools.impls._locks import keyed_locks
+from app.agent_runtime.tools.impls.chapter.refs import (
+    VolumeRef,
+    resolve_volume_from_list,
+)
 from app.agent_runtime.tools.registry import ToolRegistry
 from app.storage.database import create_session
 from app.storage.repos import chapter_repo, volume_repo
@@ -33,23 +38,33 @@ class DeleteVolumeTool(AgentTool):
                 await volume_repo.list_by_project(session, self.project_id),
                 VolumeRef.model_validate(volume_ref),
             )
-            chapter_count = await chapter_repo.count_by_volume(session, volume.id)
-            if chapter_count > 0 and not cascade:
-                await session.rollback()
+            volume_id = volume.id
+            await session.rollback()
+            async with keyed_locks(
+                [
+                    ("volumes", self.project_id),
+                    ("chapters", self.project_id),
+                ]
+            ):
+                if await volume_repo.get_by_id(session, volume_id) is None:
+                    raise ToolExecutionError(f"卷不存在: {volume_id}")
+                chapter_count = await chapter_repo.count_by_volume(session, volume_id)
+                if chapter_count > 0 and not cascade:
+                    await session.rollback()
+                    return json.dumps(
+                        {"error": "卷非空，删除时需要 cascade=true"},
+                        ensure_ascii=False,
+                    )
+
+                await volume_service.delete_volume(session, volume_id, cascade=cascade)
+                await refresh_project_stats(session, self.project_id)
+                await session.commit()
                 return json.dumps(
-                    {"error": "卷非空，删除时需要 cascade=true"},
+                    {
+                        "success": True,
+                    },
                     ensure_ascii=False,
                 )
-
-            await volume_service.delete_volume(session, volume.id, cascade=cascade)
-            await refresh_project_stats(session, self.project_id)
-            await session.commit()
-            return json.dumps(
-                {
-                    "success": True,
-                },
-                ensure_ascii=False,
-            )
         except Exception:
             await session.rollback()
             raise

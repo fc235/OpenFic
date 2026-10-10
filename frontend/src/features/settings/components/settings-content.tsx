@@ -341,6 +341,9 @@ export function SettingsContent({
       if (category === "context") {
         removeQuery(["settings"]);
       }
+      if (category === "summary") {
+        removeQuery(["settings"]);
+      }
       if (category === "advanced") {
         removeQuery(["settings"]);
         removeQuery(["audit-details-storage"]);

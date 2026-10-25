@@ -1,37 +1,36 @@
 {
   "name": "openfic-desktop",
+  "version": "1.4.0",
   "private": true,
-  "version": "1.3.0",
   "description": "An AI-native, cross-platform writing tool for fiction authors.",
+  "homepage": "https://github.com/fc235/OpenFic",
+  "bugs": {
+    "url": "https://github.com/fc235/OpenFic/issues"
+  },
+  "license": "Apache-2.0",
   "author": {
     "name": "Syrize",
     "email": "syrize@qq.com"
   },
-  "license": "Apache-2.0",
-  "homepage": "https://github.com/fc235/OpenFic",
   "repository": {
     "type": "git",
     "url": "https://github.com/fc235/OpenFic.git"
   },
-  "bugs": {
-    "url": "https://github.com/fc235/OpenFic/issues"
-  },
   "type": "module",
   "main": "dist/main/main.js",
-  "packageManager": "pnpm@11.8.0",
   "scripts": {
-    "dev": "pnpm build:frontend && pnpm build:setup && pnpm build:main && electron .",
-    "dev:local": "node scripts/dev-local.mjs",
     "build": "pnpm build:frontend && pnpm build:setup && pnpm build:main",
     "build:backend": "node scripts/build-backend.mjs",
     "build:frontend": "pnpm --dir ../frontend build",
     "build:main": "tsc -p tsconfig.main.json",
     "build:setup": "vp build",
-    "type-check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "dev": "pnpm build:frontend && pnpm build:setup && pnpm build:main && electron .",
+    "dev:local": "node scripts/dev-local.mjs",
     "lint": "eslint . --ext .js,.jsx,.mjs,.ts,.tsx,.mts",
     "package": "pnpm build:backend && electron-builder --config electron-builder.yml --win --x64 && node scripts/normalize-artifact-names.mjs",
     "package:local-update": "node scripts/package-local-update.mjs",
-    "serve:local-update": "node scripts/serve-local-update.mjs"
+    "serve:local-update": "node scripts/serve-local-update.mjs",
+    "type-check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit"
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
@@ -40,13 +39,13 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@radix-ui/themes": "^3.3.0",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/tar-stream": "^3.1.4",
     "@typescript-eslint/eslint-plugin": "^8.59.2",
     "@typescript-eslint/parser": "^8.59.2",
-    "@radix-ui/themes": "^3.3.0",
     "@vitejs/plugin-react": "^6.0.3",
     "electron": "^43.4.0",
     "electron-builder": "26.15.6",
@@ -64,5 +63,6 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.59.2",
     "vite-plus": "^0.2.4"
-  }
+  },
+  "packageManager": "pnpm@11.8.0"
 }

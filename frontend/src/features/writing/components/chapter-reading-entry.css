@@ -1,0 +1,16 @@
+.chapter-reading-mobile-entry {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .chapter-reading-mobile-entry {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--gray-a4);
+  }
+
+  .chapter-reading-mobile-entry:has(+ .editor-toolbar[data-mobile-keyboard-open="true"]) {
+    display: none;
+  }
+}

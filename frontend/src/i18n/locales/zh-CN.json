@@ -2116,11 +2116,9 @@
     "deepseekPricingOffPeak3": "梁文谷送来双倍快乐，大肥鱼已经准备好加班啦！",
     "deepseekPricingOffPeak4": "现在是梁文谷时间，灵感可以开饭，钱包先歇一歇。",
     "deepseekPricingOffPeak5": "梁文谷已就位，趁大肥鱼打折，多蹬两脚吧！",
-
     "deepseekPricingPeak": "当前为梁文峰哦，你的钱包真是肥嘟嘟的",
     "deepseekPricingOffPeak": "当前为梁文谷，可以放心大胆蹬大肥鱼啦！",
     "deepseekPricingSchedule": "北京时间：周一至周五 09:00–12:00、14:00–18:00 为峰时，其余为谷时。",
-
     "loadOlderMessages": "加载更早的消息",
     "loadingOlderMessages": "正在加载历史消息…",
     "retryOlderMessages": "历史消息加载失败，点击重试",
@@ -2737,5 +2735,27 @@
       "ready": "模型准备完成",
       "failed": "下载失败，可重试"
     }
+  },
+  "reading": {
+    "title": "阅读模式",
+    "exit": "退出阅读模式",
+    "settings": "阅读设置",
+    "closeSettings": "关闭阅读设置",
+    "previous": "上一页",
+    "next": "下一页",
+    "play": "开始自动翻页",
+    "pause": "暂停自动翻页",
+    "previousKey": "上一页按键",
+    "nextKey": "下一页按键",
+    "interval": "自动翻页间隔（秒）",
+    "keyHint": "点击按键框后按一个键即可修改。默认方向键翻页，章末自动衔接下一章。",
+    "keyConflict": "上一页与下一页不能使用相同按键。",
+    "intervalRange": "请输入 1 到 3600 之间的整数秒。",
+    "reset": "恢复默认设置",
+    "content": "章节阅读内容",
+    "progress": "第 {{page}} / {{pages}} 页 · {{chapter}} / {{chapters}} 章",
+    "empty": "本章暂无正文",
+    "loading": "正在加载章节…",
+    "loadFailed": "章节加载失败，自动翻页已暂停。你可以再次点击翻页按钮重试。"
   }
 }

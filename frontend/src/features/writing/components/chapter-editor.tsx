@@ -1,7 +1,7 @@
-import { Flex, Text } from "@radix-ui/themes";
+import { Button, Flex, Text } from "@radix-ui/themes";
 import { useQuery } from "@tanstack/react-query";
 import { useEditor } from "@tiptap/react";
-import { AtSign } from "lucide-react";
+import { AtSign, BookOpen } from "lucide-react";
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import wordsCountModule from "words-count";
@@ -52,6 +52,8 @@ import {
 import { useChapterNavigationStore } from "../store/use-chapter-navigation-store";
 import { useTabsStore } from "../store/use-tabs-store";
 
+import "./chapter-reading-entry.css";
+
 const MANUAL_SAVE_EVENT = "openfic:chapter-editor-manual-save";
 
 interface WordsCountModule {
@@ -66,6 +68,7 @@ function getLineNumberDigits(lineCount: number): number {
 
 interface ChapterEditorProps {
   chapterId: string | null;
+  onStartReading?: (chapter: Chapter) => void;
   scrollTop?: number;
   onChapterUpdate?: (chapter: Chapter) => void;
   onScrollPositionChange?: (chapterId: string, scrollTop: number) => void;
@@ -77,6 +80,7 @@ interface ChapterEditorProps {
 
 interface ChapterEditorContentProps {
   chapter: Chapter;
+  onStartReading?: (chapter: Chapter) => void;
   scrollTop: number;
   initialDraft: WritingDraft;
   initialDraftUpdatedAt: Date;
@@ -91,6 +95,7 @@ interface ChapterEditorContentProps {
 
 function ChapterEditorContent({
   chapter,
+  onStartReading,
   scrollTop,
   initialDraft,
   initialDraftUpdatedAt,
@@ -644,6 +649,20 @@ function ChapterEditorContent({
 
   return (
     <DocumentEditor
+      banner={
+        onStartReading && (
+          <div className="chapter-reading-mobile-entry">
+            <Button
+              variant="ghost"
+              color="gray"
+              onClick={() => onStartReading({ ...chapter, ...latestDraftRef.current })}
+            >
+              <BookOpen size={16} />
+              {t("reading.title")}
+            </Button>
+          </div>
+        )
+      }
       toolbar={{
         editor,
         onSave: handleSave,
@@ -652,6 +671,16 @@ function ChapterEditorContent({
         isAgentLocked,
         onLockedAction: showLockedToast,
         showChapterTools: true,
+        extraActions: onStartReading
+          ? [
+              {
+                id: "reading-mode",
+                icon: <BookOpen size={16} />,
+                label: t("reading.title"),
+                onClick: () => onStartReading({ ...chapter, ...latestDraftRef.current }),
+              },
+            ]
+          : undefined,
       }}
       search={search}
       title={{
@@ -693,6 +722,7 @@ function ChapterEditorContent({
 
 export function ChapterEditor({
   chapterId,
+  onStartReading,
   scrollTop = 0,
   onChapterUpdate,
   onScrollPositionChange,
@@ -750,6 +780,7 @@ export function ChapterEditor({
     <ChapterEditorWorkingCopy
       key={`${data.entity.id}:${data.draftUpdatedAt.getTime()}`}
       chapter={data.entity}
+      onStartReading={onStartReading}
       scrollTop={scrollTop}
       initialDraft={data.draft}
       initialDraftUpdatedAt={data.draftUpdatedAt}
@@ -765,6 +796,7 @@ export function ChapterEditor({
 
 function ChapterEditorWorkingCopy({
   chapter,
+  onStartReading,
   scrollTop,
   initialDraft,
   initialDraftUpdatedAt,
@@ -784,6 +816,7 @@ function ChapterEditorWorkingCopy({
     <ChapterEditorContent
       key={`${chapter.id}:${initialDraftUpdatedAt.getTime()}`}
       chapter={chapter}
+      onStartReading={onStartReading}
       scrollTop={scrollTop}
       initialDraft={initialDraft}
       initialDraftUpdatedAt={initialDraftUpdatedAt}

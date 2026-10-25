@@ -30,6 +30,7 @@
     "playwright.config.ts",
     "playwright.history.config.ts",
     "playwright.integration.config.ts",
+    "playwright.reading.config.ts",
     "playwright.harness.config.ts"
   ]
 }

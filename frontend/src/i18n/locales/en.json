@@ -2053,11 +2053,9 @@
     "deepseekPricingOffPeak3": "梁文谷 brings double the fun, and the big fish is ready for overtime!",
     "deepseekPricingOffPeak4": "It’s 梁文谷 time—feed your inspiration and give your wallet a breather.",
     "deepseekPricingOffPeak5": "梁文谷 is ready—make the most of the big fish’s discount!",
-
     "deepseekPricingPeak": "It’s 梁文峰 time—your wallet is looking extra plump!",
     "deepseekPricingOffPeak": "It’s 梁文谷 time—go ahead and reel in the big fish!",
     "deepseekPricingSchedule": "Beijing time: peak hours are Monday–Friday, 09:00–12:00 and 14:00–18:00; all other times are off-peak.",
-
     "loadOlderMessages": "Load older messages",
     "loadingOlderMessages": "Loading history…",
     "retryOlderMessages": "Could not load history. Retry",
@@ -2737,5 +2735,27 @@
       "ready": "Model ready",
       "failed": "Download failed; retry available"
     }
+  },
+  "reading": {
+    "title": "Reading mode",
+    "exit": "Exit reading mode",
+    "settings": "Reading settings",
+    "closeSettings": "Close reading settings",
+    "previous": "Previous page",
+    "next": "Next page",
+    "play": "Start automatic paging",
+    "pause": "Pause automatic paging",
+    "previousKey": "Previous page key",
+    "nextKey": "Next page key",
+    "interval": "Automatic page interval (seconds)",
+    "keyHint": "Focus a key field and press a single key to customize it. Arrow keys turn pages by default; the next chapter follows automatically.",
+    "keyConflict": "Previous and next page must use different keys.",
+    "intervalRange": "Enter a whole number of seconds between 1 and 3600.",
+    "reset": "Reset defaults",
+    "content": "Chapter reading content",
+    "progress": "Page {{page}} / {{pages}} · Chapter {{chapter}} / {{chapters}}",
+    "empty": "This chapter has no content yet",
+    "loading": "Loading chapter…",
+    "loadFailed": "Could not load the chapter. Automatic paging is paused. Try a page button again."
   }
 }

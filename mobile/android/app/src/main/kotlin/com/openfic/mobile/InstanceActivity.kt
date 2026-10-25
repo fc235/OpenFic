@@ -5,11 +5,13 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.view.KeyEvent
 import android.webkit.*
 import android.widget.LinearLayout
 import androidx.activity.OnBackPressedCallback
@@ -47,6 +49,9 @@ class InstanceActivity : AppCompatActivity() {
     private var pendingDownloadCookie: String? = null
     private var notificationPermissionReply: JavaScriptReplyProxy? = null
     private var notificationPermissionId: String? = null
+    private val readingVolumeKeys = ReadingVolumeKeys()
+    private var readingResumed = false
+    private var readingDocumentReady = false
 
     private val filePicker: ActivityResultLauncher<Intent> = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -172,6 +177,11 @@ class InstanceActivity : AppCompatActivity() {
         }
 
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                readingDocumentReady = false
+                readingVolumeKeys.reset()
+            }
+
             override fun shouldInterceptRequest(
                 view: WebView,
                 request: WebResourceRequest
@@ -239,6 +249,8 @@ class InstanceActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView, url: String) {
                 CookieManager.getInstance().flush()
                 view.evaluateJavascript(BLOB_DOWNLOAD_SCRIPT, null)
+                readingDocumentReady = sameOrigin(Uri.parse(url))
+                requestReadingState()
             }
         }
 
@@ -262,6 +274,20 @@ class InstanceActivity : AppCompatActivity() {
         }
 
         if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.WEB_MESSAGE_LISTENER)) {
+            WebViewCompat.addWebMessageListener(
+                webView,
+                "OpenFicReading",
+                setOf(baseUrl),
+            ) { _, message, sourceOrigin, isMainFrame, _ ->
+                if (!isMainFrame || !sameOrigin(sourceOrigin)) return@addWebMessageListener
+                val enabled = try {
+                    // Accept only a JSON boolean; strings and numbers must fail closed.
+                    JSONObject(message.data ?: "{}").get("enabled") == true
+                } catch (_: Exception) {
+                    false
+                }
+                readingVolumeKeys.setEnabled(enabled && canReadVolumeKeys())
+            }
             androidx.webkit.WebViewCompat.addWebMessageListener(webView, "OpenFicAppearance", setOf(baseUrl)) { _, message, _, isMainFrame, _ ->
                 if (isMainFrame) {
                     try {
@@ -510,29 +536,78 @@ class InstanceActivity : AppCompatActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        webView.saveState(outState)
+        if (::webView.isInitialized) webView.saveState(outState)
         super.onSaveInstanceState(outState)
     }
 
+    private fun canReadVolumeKeys(): Boolean = readingResumed && hasWindowFocus() &&
+        readingDocumentReady && !isDestroyed && ::webView.isInitialized &&
+        webView.url?.let { sameOrigin(Uri.parse(it)) } == true
+
+    private fun requestReadingState() {
+        if (canReadVolumeKeys()) webView.evaluateJavascript(READING_RESUME_SCRIPT, null)
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (!canReadVolumeKeys()) readingVolumeKeys.reset()
+        when (event.action) {
+            KeyEvent.ACTION_DOWN -> {
+                val result = readingVolumeKeys.onKeyDown(event.keyCode, event.repeatCount)
+                if (result.consumed) {
+                    val script = when (result.direction) {
+                        ReadingVolumeKeys.Direction.PREVIOUS -> READING_PREVIOUS_SCRIPT
+                        ReadingVolumeKeys.Direction.NEXT -> READING_NEXT_SCRIPT
+                        null -> null
+                    }
+                    if (script != null) webView.evaluateJavascript(script, null)
+                    return true
+                }
+            }
+            KeyEvent.ACTION_UP -> if (readingVolumeKeys.onKeyUp(event.keyCode)) return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        readingVolumeKeys.reset()
+        if (hasFocus) requestReadingState()
+    }
+
     override fun onPause() {
-        webView.onPause()
+        readingResumed = false
+        readingVolumeKeys.reset()
+        if (::webView.isInitialized) webView.onPause()
         CookieManager.getInstance().flush()
         super.onPause()
     }
 
     override fun onResume() {
         super.onResume()
-        webView.onResume()
+        readingResumed = true
+        if (::webView.isInitialized) webView.onResume()
+        requestReadingState()
     }
 
     override fun onDestroy() {
+        readingResumed = false
+        readingDocumentReady = false
+        readingVolumeKeys.reset()
         fileCallback?.onReceiveValue(null)
-        webView.stopLoading()
-        webView.destroy()
+        if (::webView.isInitialized) {
+            webView.stopLoading()
+            webView.destroy()
+        }
         super.onDestroy()
     }
 
     companion object {
+        private const val READING_RESUME_SCRIPT =
+            "window.dispatchEvent(new Event('openfic:reading-native-resume'));"
+        private const val READING_PREVIOUS_SCRIPT =
+            "window.dispatchEvent(new CustomEvent('openfic:reading-volume-key',{detail:{direction:'previous'}}));"
+        private const val READING_NEXT_SCRIPT =
+            "window.dispatchEvent(new CustomEvent('openfic:reading-volume-key',{detail:{direction:'next'}}));"
         private const val NOTIFICATION_PERMISSION_REQUEST = 2002
         private const val WEB_NOTIFICATION_CHANNEL = "openfic-instance-notifications"
         private var nextNotificationId = 3000

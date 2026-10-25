@@ -64,6 +64,195 @@ async function intervalOne(page: Page) {
   await expect(page.getByLabel("自动翻页间隔（秒）", { exact: true })).not.toBeVisible();
 }
 
+type NativeReadingTestWindow = Window & {
+  OpenFicReading: { postMessage(message: string): void };
+  readingHostMessages: { enabled: boolean }[];
+  readingTestFocused: boolean;
+};
+
+async function installReadingHost(page: Page) {
+  await page.addInitScript(() => {
+    const host = window as unknown as NativeReadingTestWindow;
+    host.readingHostMessages = [];
+    host.readingTestFocused = true;
+    Object.defineProperty(document, "hasFocus", {
+      configurable: true,
+      value: () => host.readingTestFocused,
+    });
+    host.OpenFicReading = {
+      postMessage: (message) => host.readingHostMessages.push(JSON.parse(message)),
+    };
+  });
+}
+
+const hostEnabled = (page: Page) =>
+  page.evaluate(
+    () => (window as unknown as NativeReadingTestWindow).readingHostMessages.at(-1)?.enabled,
+  );
+
+async function volumeEvent(page: Page, direction: unknown) {
+  await page.evaluate((value) => {
+    window.dispatchEvent(
+      new CustomEvent("openfic:reading-volume-key", { detail: { direction: value } }),
+    );
+  }, direction);
+}
+
+async function readingFocus(page: Page, focused: boolean) {
+  await page.evaluate((value) => {
+    (window as unknown as NativeReadingTestWindow).readingTestFocused = value;
+    window.dispatchEvent(new Event(value ? "focus" : "blur"));
+  }, focused);
+}
+
+async function readingVisibility(page: Page, visible: boolean) {
+  await page.evaluate((value) => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: value ? "visible" : "hidden",
+    });
+    Object.defineProperty(document, "hidden", { configurable: true, value: !value });
+    document.dispatchEvent(new Event("visibilitychange"));
+  }, visible);
+}
+
+test("native volume paging bypasses custom shortcuts and pauses automatic reading", async ({
+  page,
+}) => {
+  await installReadingHost(page);
+  await setup(page);
+  expect(await hostEnabled(page)).not.toBe(true);
+  await openReader(page);
+  await expect.poll(() => hostEnabled(page)).toBe(true);
+  await page.getByRole("button", { name: "阅读设置", exact: true }).click();
+  await page.getByLabel("上一页按键", { exact: true }).press("k");
+  await page.getByLabel("下一页按键", { exact: true }).press("j");
+  await page.keyboard.press("Escape");
+  await expect.poll(() => hostEnabled(page)).toBe(true);
+  await play(page).click();
+  await expect(pause(page)).toBeVisible();
+  await volumeEvent(page, "next");
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(0);
+  await expect(play(page)).toBeVisible();
+  await volumeEvent(page, "previous");
+  await expect.poll(() => scrollTop(page)).toBe(0);
+});
+
+test("native capture disables in settings and on exit and does not duplicate after reopen", async ({
+  page,
+}) => {
+  await installReadingHost(page);
+  await setup(page);
+  await openReader(page);
+  await expect.poll(() => hostEnabled(page)).toBe(true);
+  await volumeEvent(page, "next");
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(0);
+  const onePage = await scrollTop(page);
+  await page.getByRole("button", { name: "阅读设置", exact: true }).click();
+  await expect.poll(() => hostEnabled(page)).toBe(false);
+  await volumeEvent(page, "next");
+  expect(await scrollTop(page)).toBe(onePage);
+  await page.keyboard.press("Escape");
+  await expect.poll(() => hostEnabled(page)).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("reading-viewport")).toHaveCount(0);
+  await expect.poll(() => hostEnabled(page)).toBe(false);
+  await volumeEvent(page, "next");
+  await openReader(page);
+  await expect.poll(() => hostEnabled(page)).toBe(true);
+  expect(await scrollTop(page)).toBe(0);
+  await volumeEvent(page, "next");
+  await expect.poll(() => scrollTop(page)).toBe(onePage);
+});
+
+test("native capture gates blur and hidden state then resynchronizes on resume", async ({
+  page,
+}) => {
+  await installReadingHost(page);
+  await setup(page);
+  await openReader(page);
+  await expect.poll(() => hostEnabled(page)).toBe(true);
+  for (const signal of ["blur", "hidden"] as const) {
+    if (signal === "blur") await readingFocus(page, false);
+    else await readingVisibility(page, false);
+    await expect.poll(() => hostEnabled(page)).toBe(false);
+    await volumeEvent(page, "next");
+    expect(await scrollTop(page)).toBe(0);
+    // A native resume cannot override a still-inactive document.
+    await page.evaluate(() => window.dispatchEvent(new Event("openfic:reading-native-resume")));
+    await expect.poll(() => hostEnabled(page)).toBe(false);
+    if (signal === "blur") await readingFocus(page, true);
+    else await readingVisibility(page, true);
+    await expect.poll(() => hostEnabled(page)).toBe(true);
+  }
+  const beforeResume = await page.evaluate(
+    () => (window as unknown as NativeReadingTestWindow).readingHostMessages.length,
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event("openfic:reading-native-resume")));
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as unknown as NativeReadingTestWindow).readingHostMessages.length,
+      ),
+    )
+    .toBeGreaterThan(beforeResume);
+  expect(await hostEnabled(page)).toBe(true);
+  await volumeEvent(page, "next");
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(0);
+});
+
+test("native capture is suspended while a chapter loads and returns for its first page", async ({
+  page,
+}) => {
+  await installReadingHost(page);
+  await setup(page, { a: "短章节", delayB: 1600 });
+  await openReader(page);
+  await expect.poll(() => hostEnabled(page)).toBe(true);
+  await volumeEvent(page, "next");
+  await expect(page.locator('.reading-mode-body[aria-busy="true"]')).toBeVisible();
+  await expect.poll(() => hostEnabled(page)).toBe(false);
+  await volumeEvent(page, "next");
+  await expect(page.getByRole("heading", { name: "章节B", exact: true })).toBeVisible();
+  await expect.poll(() => hostEnabled(page)).toBe(true);
+  expect(await scrollTop(page)).toBe(0);
+  await volumeEvent(page, "next");
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(0);
+});
+
+test("native volume events reject malformed directions without interrupting playback", async ({
+  page,
+}) => {
+  await installReadingHost(page);
+  await setup(page);
+  await openReader(page);
+  await expect.poll(() => hostEnabled(page)).toBe(true);
+  await play(page).click();
+  for (const direction of ["up", "Next", null, 1, {}]) await volumeEvent(page, direction);
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("openfic:reading-volume-key"));
+    window.dispatchEvent(new CustomEvent("openfic:reading-volume-key", { detail: null }));
+  });
+  expect(await scrollTop(page)).toBe(0);
+  await expect(pause(page)).toBeVisible();
+});
+
+test("ordinary browser without a native bridge ignores volume events and volume keyboard keys", async ({
+  page,
+}) => {
+  await setup(page);
+  await openReader(page);
+  await volumeEvent(page, "next");
+  const prevented = await page.getByTestId("reading-viewport").evaluate((element) =>
+    ["AudioVolumeUp", "AudioVolumeDown"].map((key) => {
+      const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+      element.dispatchEvent(event);
+      return event.defaultPrevented;
+    }),
+  );
+  expect(prevented).toEqual([false, false]);
+  expect(await scrollTop(page)).toBe(0);
+});
+
 test("reader receives the live unsaved draft and exit restores the same editing surface", async ({
   page,
 }) => {

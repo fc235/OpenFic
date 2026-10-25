@@ -10,7 +10,11 @@
 
 `Esc` 先关闭阅读设置，再次按下退出阅读模式。输入框内、输入法组合输入期间及带 Ctrl/Alt/Meta 的组合键不会触发翻页。阅读界面的快捷键不会覆盖正常编辑时的方向键。
 
-验证覆盖分页边界、快捷键与偏好校验的 10 项 Node 测试，以及桌面/手机、未保存草稿、自动衔接、加载失败、窗口尺寸变化和焦点恢复的 16 项 Chrome 浏览器回归。前端脚本套件、TypeScript、类型感知 lint 和生产构建均通过。
+Android 客户端支持音量键：音量＋上一页，音量－下一页，长按仅翻一页。只在阅读界面可操作且应用处于前台时拦截；打开阅读设置、加载章节、窗口失焦或退出阅读后恢复系统音量行为。音量键翻页与自定义键盘按键相互独立，手动翻页同样会暂停自动播放。需要安装包含此原生桥接的新客户端，手机浏览器/PWA 不能通过网页代码获得同样的系统音量键能力。
+
+原生使用受实例来源和主框架限制的 `OpenFicReading` WebView 消息通道，并在导航、生命周期变化后重置和重新同步捕获状态。7 项 Kotlin/JUnit 按键策略测试覆盖按下/抬起、长按、退出与状态切换；阅读模式浏览器回归扩展至 22 项，覆盖桥接启停及没有原生通道时的行为。浏览器模拟消息测试不等同于手机物理按键实测。
+
+验证覆盖分页边界、快捷键与偏好校验的 10 项 Node 测试，以及桌面/手机、未保存草稿、自动衔接、加载失败、窗口尺寸变化、焦点恢复和音量键桥接的 22 项 Chrome 浏览器回归。前端脚本套件、TypeScript、类型感知 lint 和生产构建均通过。
 
 ```powershell
 cd frontend
@@ -21,3 +25,7 @@ node node_modules/typescript/bin/tsc -b
 pnpm exec oxlint . --type-aware --type-check
 pnpm build
 ```
+
+Android 工程需要 Java 21、Android SDK 35 和 Build Tools 35.0.0。先在 `mobile` 执行 `pnpm sync` 同步最新页面，再在 `mobile/android` 执行 `gradlew testDebugUnitTest assembleDebug`。
+
+本次完成 Android 全量编译与 16 项 Gradle 单元测试，生成并验证了 v2 签名的 1.3.0 调试 APK（应用 ID `com.openfic.mobile.dev`），且检查包内同时包含新原生通道和最新阅读页面。尚未在 Android 实机上验证物理音量键。

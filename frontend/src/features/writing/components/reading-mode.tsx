@@ -8,6 +8,7 @@ import { fetchChapter } from "@/lib/api-client";
 import type { Chapter, ChapterListItem } from "@/lib/chapter.types";
 import { getPreference, getWritingWorkingCopy, setPreference } from "@/lib/local-db";
 
+import { useReadingVolumeKeys } from "../hooks/use-reading-volume-keys";
 import {
   DEFAULT_READING_PREFERENCES,
   getReadingLayout,
@@ -193,6 +194,15 @@ export function ReadingMode({ projectId, initialChapter, chapters, onClose }: Re
   useEffect(() => {
     if (atEnd) setPlaying(false);
   }, [atEnd]);
+
+  const handleVolumePage = useCallback(
+    (direction: "previous" | "next") => {
+      setPlaying(false);
+      turnPage(direction);
+    },
+    [turnPage],
+  );
+  useReadingVolumeKeys(layoutReady && !loading && !settingsOpen, handleVolumePage);
 
   useEffect(() => {
     if (

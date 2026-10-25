@@ -25,11 +25,13 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Spinner } from "@/components";
+import { useAppShell } from "@/features/app-shell/components/app-shell-context";
 import { ProviderIcon } from "@/features/settings/lib/provider-icons";
 import type { AvailableModel, TaskType } from "@/lib/model.types";
 
 import "./model-id-select.css";
 
+import { MobileSelectSheet } from "./mobile-select-sheet";
 import {
   CapabilityIcon,
   ContextBadge,
@@ -124,7 +126,7 @@ function formatModelPriceLine(
     cacheWritePrice ? `${cacheWritePrice} ${labels.cacheWrite}` : null,
   ].filter((part): part is string => Boolean(part));
 
-  return parts.length > 0 ? parts.join(" · ") : null;
+  return parts.length > 0 ? parts.join(" 路 ") : null;
 }
 
 function ToolCallWarningBadge({ message }: { message: string }) {
@@ -181,6 +183,7 @@ export function ModelIdSelect({
   contentClassName,
 }: ModelIdSelectProps) {
   const { t } = useTranslation();
+  const { isMobile } = useAppShell();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(value || "");
   const [isListReady, setIsListReady] = useState(false);
@@ -221,7 +224,9 @@ export function ModelIdSelect({
     ? "min(300px, calc(100dvh - 140px))"
     : compact
       ? "min(300px, calc(100dvh - 104px))"
-      : 300;
+      : isMobile
+        ? "min(400px, calc(64dvh - 96px))"
+        : 300;
   const placeholderHeight = compact ? "auto" : 200;
 
   const selectedModel = useMemo(
@@ -428,82 +433,129 @@ export function ModelIdSelect({
     return trigger;
   }
 
-  return (
-    <Popover.Root
-      open={open}
-      onOpenChange={handleOpenChange}
-    >
-      <Popover.Trigger>{trigger}</Popover.Trigger>
-
-      <Popover.Content
-        className={contentClassName}
-        style={{
-          width: popoverWidth,
-          minWidth: popoverWidth,
-          padding: compact ? 4 : undefined,
-        }}
-        align="start"
-      >
-        <Box style={{ maxHeight: 400, overflow: "hidden" }}>
-          {showSearchBox || showRefreshButton ? (
-            <Box p={headerPad}>
-              <Flex
-                align="center"
-                gap={compact ? "1" : "2"}
-              >
-                {showSearchBox ? (
-                  <TextField.Root
-                    size={compact ? "1" : "2"}
-                    placeholder={t("models.searchModel")}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    autoFocus
-                    style={{ flex: 1 }}
-                  >
-                    <TextField.Slot>
-                      <Search size={compact ? 14 : 16} />
-                    </TextField.Slot>
-                  </TextField.Root>
-                ) : null}
-                {showRefreshButton ? (
-                  <IconButton
-                    size="1"
-                    variant="soft"
-                    color="gray"
-                    highContrast
-                    onClick={onRefresh}
-                    disabled={refreshDisabled || !onRefresh || isRefreshing}
-                    aria-label={t("models.fetchRemoteModels")}
-                    title={t("models.fetchRemoteModels")}
-                  >
-                    {isRefreshing ? <Spinner size={18} /> : <RefreshCw size={14} />}
-                  </IconButton>
-                ) : null}
-              </Flex>
-            </Box>
-          ) : null}
-
-          <ScrollArea
-            scrollbars="vertical"
-            style={{ height: scrollAreaHeight }}
+  const selectContent = (
+    <Box style={{ maxHeight: 400, overflow: "hidden" }}>
+      {showSearchBox || showRefreshButton ? (
+        <Box p={headerPad}>
+          <Flex
+            align="center"
+            gap={compact ? "1" : "2"}
           >
-            {isLoading || (open && !isListReady) ? (
-              <Flex
-                align="center"
-                justify="center"
-                direction="column"
-                gap="2"
-                style={{ height: placeholderHeight, padding: 20 }}
+            {showSearchBox ? (
+              <TextField.Root
+                size={compact ? "1" : "2"}
+                placeholder={t("models.searchModel")}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoFocus={!isMobile}
+                style={{ flex: 1 }}
               >
-                <Spinner size={18} />
+                <TextField.Slot>
+                  <Search size={compact ? 14 : 16} />
+                </TextField.Slot>
+              </TextField.Root>
+            ) : null}
+            {showRefreshButton ? (
+              <IconButton
+                size="1"
+                variant="soft"
+                color="gray"
+                highContrast
+                onClick={onRefresh}
+                disabled={refreshDisabled || !onRefresh || isRefreshing}
+                aria-label={t("models.fetchRemoteModels")}
+                title={t("models.fetchRemoteModels")}
+              >
+                {isRefreshing ? <Spinner size={18} /> : <RefreshCw size={14} />}
+              </IconButton>
+            ) : null}
+          </Flex>
+        </Box>
+      ) : null}
+
+      <ScrollArea
+        scrollbars="vertical"
+        style={{ height: scrollAreaHeight }}
+      >
+        {isLoading || (open && !isListReady) ? (
+          <Flex
+            align="center"
+            justify="center"
+            direction="column"
+            gap="2"
+            style={{ height: placeholderHeight, padding: 20 }}
+          >
+            <Spinner size={18} />
+            <Text
+              size={labelSize}
+              color="gray"
+            >
+              {t("models.loadingModels")}
+            </Text>
+          </Flex>
+        ) : error ? (
+          <Flex
+            align="center"
+            justify="center"
+            direction="column"
+            gap="2"
+            style={{ height: placeholderHeight, padding: 20 }}
+          >
+            <Text
+              size="2"
+              color="red"
+              align="center"
+              weight="medium"
+            >
+              {t("models.loadModelsFailed")}
+            </Text>
+            <Text
+              size="1"
+              color="gray"
+              align="center"
+              style={{ maxWidth: 300 }}
+            >
+              {error}
+            </Text>
+            {allowCustomValue ? (
+              <Text
+                size="1"
+                color="gray"
+                align="center"
+              >
+                {t("models.manualInputHint")}
+              </Text>
+            ) : null}
+          </Flex>
+        ) : models.length === 0 ? (
+          <Flex direction="column">
+            {emptyOptionLabel ? (
+              <MotionBox
+                onClick={handleClearSelection}
+                style={{
+                  padding: itemPadding,
+                  cursor: "pointer",
+                  borderBottom: "1px solid var(--gray-a3)",
+                }}
+                whileHover={{ backgroundColor: "var(--gray-a2)" }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.15 }}
+              >
                 <Text
                   size={labelSize}
                   color="gray"
                 >
-                  {t("models.loadingModels")}
+                  {emptyOptionLabel}
                 </Text>
-              </Flex>
-            ) : error ? (
+              </MotionBox>
+            ) : null}
+            {showCustomOption ? (
+              <CustomModelOption
+                modelId={searchQuery}
+                onSelect={handleUseCustom}
+                itemPadding={itemPadding}
+              />
+            ) : (
               <Flex
                 align="center"
                 justify="center"
@@ -512,20 +564,11 @@ export function ModelIdSelect({
                 style={{ height: placeholderHeight, padding: 20 }}
               >
                 <Text
-                  size="2"
-                  color="red"
-                  align="center"
-                  weight="medium"
-                >
-                  {t("models.loadModelsFailed")}
-                </Text>
-                <Text
-                  size="1"
+                  size={labelSize}
                   color="gray"
                   align="center"
-                  style={{ maxWidth: 300 }}
                 >
-                  {error}
+                  {t("models.noModelsAvailable")}
                 </Text>
                 {allowCustomValue ? (
                   <Text
@@ -537,279 +580,255 @@ export function ModelIdSelect({
                   </Text>
                 ) : null}
               </Flex>
-            ) : models.length === 0 ? (
-              <Flex direction="column">
-                {emptyOptionLabel ? (
-                  <MotionBox
-                    onClick={handleClearSelection}
-                    style={{
-                      padding: itemPadding,
-                      cursor: "pointer",
-                      borderBottom: "1px solid var(--gray-a3)",
-                    }}
-                    whileHover={{ backgroundColor: "var(--gray-a2)" }}
-                    whileTap={{ scale: 0.98 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Text
-                      size={labelSize}
-                      color="gray"
-                    >
-                      {emptyOptionLabel}
-                    </Text>
-                  </MotionBox>
-                ) : null}
-                {showCustomOption ? (
-                  <CustomModelOption
-                    modelId={searchQuery}
-                    onSelect={handleUseCustom}
-                    itemPadding={itemPadding}
-                  />
-                ) : (
+            )}
+          </Flex>
+        ) : (
+          <Flex direction="column">
+            {emptyOptionLabel ? (
+              <MotionBox
+                onClick={handleClearSelection}
+                style={{
+                  padding: itemPadding,
+                  cursor: "pointer",
+                  borderBottom:
+                    showCustomOption || filteredModels.length > 0
+                      ? "1px solid var(--gray-a3)"
+                      : undefined,
+                }}
+                whileHover={{ backgroundColor: "var(--gray-a2)" }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.15 }}
+              >
+                <Text
+                  size={labelSize}
+                  color="gray"
+                >
+                  {emptyOptionLabel}
+                </Text>
+              </MotionBox>
+            ) : null}
+
+            {showCustomOption ? (
+              <CustomModelOption
+                modelId={searchQuery}
+                onSelect={handleUseCustom}
+                itemPadding={itemPadding}
+              />
+            ) : null}
+
+            {filteredModels.map((model, index) => {
+              const capabilityKeys = getModelCapabilityKeys(model);
+              const contextLabel = formatContextWindow(model.contextWindow);
+              const hasMetadata =
+                model.reasoning !== null && model.reasoning !== undefined
+                  ? true
+                  : model.toolCall !== null && model.toolCall !== undefined
+                    ? true
+                    : (model.inputModalities?.length ?? 0) > 0 ||
+                      model.limit !== null ||
+                      model.cost !== null ||
+                      model.contextWindow !== null ||
+                      model.inputPricePerMillion !== null ||
+                      model.outputPricePerMillion !== null ||
+                      model.cacheReadPricePerMillion !== null ||
+                      model.cacheWritePricePerMillion !== null;
+              const showToolCallWarning =
+                taskType === "llm" && hasMetadata && model.toolCall === false;
+              const priceLine = formatModelPriceLine(model, {
+                input: t("models.priceInputLabel"),
+                output: t("models.priceOutputLabel"),
+                cacheRead: t("models.priceCacheReadLabel"),
+                cacheWrite: t("models.priceCacheWriteLabel"),
+              });
+
+              return (
+                <MotionBox
+                  key={getModelValue(model)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={model.name}
+                  onClick={(event: React.MouseEvent<HTMLDivElement>) =>
+                    handleModelClick(model, event.detail)
+                  }
+                  onMouseDown={() => {
+                    // A second press owns the gesture even if released after the deadline.
+                    if (pendingSelectionRef.current) {
+                      clearTimeout(pendingSelectionRef.current.timer);
+                      if (pendingSelectionRef.current.modelId !== getModelValue(model))
+                        cancelPendingSelection();
+                    }
+                  }}
+                  onKeyDown={(event: React.KeyboardEvent<HTMLDivElement>) => {
+                    if (
+                      event.target === event.currentTarget &&
+                      (event.key === "Enter" || event.key === " ")
+                    ) {
+                      event.preventDefault();
+                      handleSelectModel(model);
+                    }
+                  }}
+                  style={{
+                    padding: itemPadding,
+                    cursor: "pointer",
+                    borderBottom:
+                      index < filteredModels.length - 1 ? "1px solid var(--gray-a3)" : undefined,
+                  }}
+                  whileHover={{ backgroundColor: "var(--gray-a2)" }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ duration: 0.15 }}
+                >
                   <Flex
                     align="center"
-                    justify="center"
-                    direction="column"
-                    gap="2"
-                    style={{ height: placeholderHeight, padding: 20 }}
+                    gap={compact ? "1" : "2"}
+                    style={{ minWidth: 0 }}
                   >
-                    <Text
-                      size={labelSize}
-                      color="gray"
-                      align="center"
-                    >
-                      {t("models.noModelsAvailable")}
-                    </Text>
-                    {allowCustomValue ? (
-                      <Text
-                        size="1"
-                        color="gray"
-                        align="center"
-                      >
-                        {t("models.manualInputHint")}
-                      </Text>
+                    {!compact && model.providerIconPath ? (
+                      <ProviderIcon
+                        iconPath={model.providerIconPath}
+                        size={24}
+                      />
                     ) : null}
-                  </Flex>
-                )}
-              </Flex>
-            ) : (
-              <Flex direction="column">
-                {emptyOptionLabel ? (
-                  <MotionBox
-                    onClick={handleClearSelection}
-                    style={{
-                      padding: itemPadding,
-                      cursor: "pointer",
-                      borderBottom:
-                        showCustomOption || filteredModels.length > 0
-                          ? "1px solid var(--gray-a3)"
-                          : undefined,
-                    }}
-                    whileHover={{ backgroundColor: "var(--gray-a2)" }}
-                    whileTap={{ scale: 0.98 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Text
-                      size={labelSize}
-                      color="gray"
-                    >
-                      {emptyOptionLabel}
-                    </Text>
-                  </MotionBox>
-                ) : null}
-
-                {showCustomOption ? (
-                  <CustomModelOption
-                    modelId={searchQuery}
-                    onSelect={handleUseCustom}
-                    itemPadding={itemPadding}
-                  />
-                ) : null}
-
-                {filteredModels.map((model, index) => {
-                  const capabilityKeys = getModelCapabilityKeys(model);
-                  const contextLabel = formatContextWindow(model.contextWindow);
-                  const hasMetadata =
-                    model.reasoning !== null && model.reasoning !== undefined
-                      ? true
-                      : model.toolCall !== null && model.toolCall !== undefined
-                        ? true
-                        : (model.inputModalities?.length ?? 0) > 0 ||
-                          model.limit !== null ||
-                          model.cost !== null ||
-                          model.contextWindow !== null ||
-                          model.inputPricePerMillion !== null ||
-                          model.outputPricePerMillion !== null ||
-                          model.cacheReadPricePerMillion !== null ||
-                          model.cacheWritePricePerMillion !== null;
-                  const showToolCallWarning =
-                    taskType === "llm" && hasMetadata && model.toolCall === false;
-                  const priceLine = formatModelPriceLine(model, {
-                    input: t("models.priceInputLabel"),
-                    output: t("models.priceOutputLabel"),
-                    cacheRead: t("models.priceCacheReadLabel"),
-                    cacheWrite: t("models.priceCacheWriteLabel"),
-                  });
-
-                  return (
-                    <MotionBox
-                      key={getModelValue(model)}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={model.name}
-                      onClick={(event: React.MouseEvent<HTMLDivElement>) =>
-                        handleModelClick(model, event.detail)
-                      }
-                      onMouseDown={() => {
-                        // A second press owns the gesture even if released after the deadline.
-                        if (pendingSelectionRef.current) {
-                          clearTimeout(pendingSelectionRef.current.timer);
-                          if (pendingSelectionRef.current.modelId !== getModelValue(model))
-                            cancelPendingSelection();
-                        }
-                      }}
-                      onKeyDown={(event: React.KeyboardEvent<HTMLDivElement>) => {
-                        if (
-                          event.target === event.currentTarget &&
-                          (event.key === "Enter" || event.key === " ")
-                        ) {
-                          event.preventDefault();
-                          handleSelectModel(model);
-                        }
-                      }}
-                      style={{
-                        padding: itemPadding,
-                        cursor: "pointer",
-                        borderBottom:
-                          index < filteredModels.length - 1
-                            ? "1px solid var(--gray-a3)"
-                            : undefined,
-                      }}
-                      whileHover={{ backgroundColor: "var(--gray-a2)" }}
-                      whileTap={{ scale: 0.98 }}
-                      transition={{ duration: 0.15 }}
+                    <Flex
+                      direction="column"
+                      gap="1"
+                      style={{ flex: 1, minWidth: 0 }}
                     >
                       <Flex
-                        align="center"
-                        gap={compact ? "1" : "2"}
+                        align="start"
+                        justify="between"
+                        gap="2"
                         style={{ minWidth: 0 }}
                       >
-                        {!compact && model.providerIconPath ? (
-                          <ProviderIcon
-                            iconPath={model.providerIconPath}
-                            size={24}
-                          />
-                        ) : null}
                         <Flex
-                          direction="column"
+                          align="center"
                           gap="1"
-                          style={{ flex: 1, minWidth: 0 }}
+                          style={{ minWidth: 0, flex: "1 1 auto" }}
                         >
-                          <Flex
-                            align="start"
-                            justify="between"
-                            gap="2"
-                            style={{ minWidth: 0 }}
+                          {compact && model.providerIconPath ? (
+                            <ProviderIcon
+                              iconPath={model.providerIconPath}
+                              size={14}
+                            />
+                          ) : null}
+                          <Text
+                            size={modelNameSize}
+                            truncate
+                            weight="medium"
+                            style={{
+                              minWidth: 0,
+                              flex: "1 1 auto",
+                              color: showToolCallWarning ? "#c64545" : undefined,
+                            }}
                           >
-                            <Flex
-                              align="center"
-                              gap="1"
-                              style={{ minWidth: 0, flex: "1 1 auto" }}
-                            >
-                              {compact && model.providerIconPath ? (
-                                <ProviderIcon
-                                  iconPath={model.providerIconPath}
-                                  size={14}
-                                />
-                              ) : null}
-                              <Text
-                                size={modelNameSize}
-                                truncate
-                                weight="medium"
-                                style={{
-                                  minWidth: 0,
-                                  flex: "1 1 auto",
-                                  color: showToolCallWarning ? "#c64545" : undefined,
-                                }}
-                              >
-                                {model.name}
-                              </Text>
-                              {onSetDefaultModel && defaultModelId === getModelValue(model) ? (
-                                <Text
-                                  size="1"
-                                  color="gray"
-                                >
-                                  {t("models.defaultModel")}
-                                </Text>
-                              ) : null}
-                              {showToolCallWarning ? (
-                                <ToolCallWarningBadge
-                                  message={t("models.toolCallWarningTooltip")}
-                                />
-                              ) : null}
-                            </Flex>
-                            {capabilityKeys.length > 0 || contextLabel ? (
-                              <Flex
-                                align="center"
-                                gap="1"
-                                wrap="wrap"
-                                justify="end"
-                                style={{ marginLeft: "auto", flexShrink: 0 }}
-                              >
-                                {capabilityKeys.map((capability) => (
-                                  <CapabilityIcon
-                                    key={`${getModelValue(model)}-${capability}`}
-                                    capability={capability}
-                                  />
-                                ))}
-                                {contextLabel ? <ContextBadge label={contextLabel} /> : null}
-                              </Flex>
-                            ) : null}
-                          </Flex>
-                          {compact ? null : (
+                            {model.name}
+                          </Text>
+                          {onSetDefaultModel && defaultModelId === getModelValue(model) ? (
                             <Text
                               size="1"
                               color="gray"
                             >
-                              {priceLine || model.id}
+                              {t("models.defaultModel")}
                             </Text>
-                          )}
+                          ) : null}
+                          {showToolCallWarning ? (
+                            <ToolCallWarningBadge message={t("models.toolCallWarningTooltip")} />
+                          ) : null}
                         </Flex>
+                        {capabilityKeys.length > 0 || contextLabel ? (
+                          <Flex
+                            align="center"
+                            gap="1"
+                            wrap="wrap"
+                            justify="end"
+                            style={{ marginLeft: "auto", flexShrink: 0 }}
+                          >
+                            {capabilityKeys.map((capability) => (
+                              <CapabilityIcon
+                                key={`${getModelValue(model)}-${capability}`}
+                                capability={capability}
+                              />
+                            ))}
+                            {contextLabel ? <ContextBadge label={contextLabel} /> : null}
+                          </Flex>
+                        ) : null}
                       </Flex>
-                    </MotionBox>
-                  );
-                })}
-
-                {filteredModels.length === 0 && !showCustomOption ? (
-                  <Flex
-                    align="center"
-                    justify="center"
-                    style={{ height: placeholderHeight, padding: 20 }}
-                  >
-                    <Text
-                      size={labelSize}
-                      color="gray"
-                    >
-                      {t("projects.noProjectsFound")}
-                    </Text>
+                      {compact ? null : (
+                        <Text
+                          size="1"
+                          color="gray"
+                        >
+                          {priceLine || model.id}
+                        </Text>
+                      )}
+                    </Flex>
                   </Flex>
-                ) : null}
-              </Flex>
-            )}
-          </ScrollArea>
-          {onSetDefaultModel && selectedModel ? (
-            <Box style={{ borderTop: "1px solid var(--gray-5)" }}>
-              <Text
-                as="p"
-                size="1"
-                color="gray"
-                m="2"
+                </MotionBox>
+              );
+            })}
+
+            {filteredModels.length === 0 && !showCustomOption ? (
+              <Flex
+                align="center"
+                justify="center"
+                style={{ height: placeholderHeight, padding: 20 }}
               >
-                {t("models.modelClickHint")}
-              </Text>
-            </Box>
-          ) : null}
-        </Box>
+                <Text
+                  size={labelSize}
+                  color="gray"
+                >
+                  {t("projects.noProjectsFound")}
+                </Text>
+              </Flex>
+            ) : null}
+          </Flex>
+        )}
+      </ScrollArea>
+      {onSetDefaultModel && selectedModel ? (
+        <Text
+          as="p"
+          size="1"
+          color="gray"
+          m="2"
+        >
+          {t("models.modelClickHint")}
+        </Text>
+      ) : null}
+    </Box>
+  );
+
+  if (isMobile) {
+    return (
+      <MobileSelectSheet
+        open={open}
+        onOpenChange={handleOpenChange}
+        title={t("models.selectModel")}
+        trigger={trigger}
+        contentClassName={contentClassName}
+      >
+        {selectContent}
+      </MobileSelectSheet>
+    );
+  }
+
+  return (
+    <Popover.Root
+      open={open}
+      onOpenChange={handleOpenChange}
+    >
+      <Popover.Trigger>{trigger}</Popover.Trigger>
+      <Popover.Content
+        className={contentClassName}
+        onOpenAutoFocus={(event) => {
+          if (isMobile) event.preventDefault();
+        }}
+        style={{
+          width: popoverWidth,
+          minWidth: popoverWidth,
+          padding: compact ? 4 : undefined,
+        }}
+        align="start"
+      >
+        {selectContent}
       </Popover.Content>
     </Popover.Root>
   );

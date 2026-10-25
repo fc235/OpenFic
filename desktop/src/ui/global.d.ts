@@ -11,6 +11,7 @@ import type {
   MigrateDataResult,
   PingInstanceResult,
   ReportErrorPayload,
+  SaveInstanceAccessKeyRequest,
   SaveInstanceAppearanceRequest,
   SetupProgressEvent,
   StartupProgressEvent,
@@ -25,6 +26,7 @@ declare global {
       onCloseDialogRequested: (handler: (requestId: string) => void) => () => void;
       getConfig: () => Promise<DesktopConfig | null>;
       saveConfig: (config: DesktopConfig) => Promise<void>;
+      saveInstanceAccessKey: (request: SaveInstanceAccessKeyRequest) => Promise<DesktopConfig>;
       saveInstanceAppearance: (request: SaveInstanceAppearanceRequest) => Promise<void>;
       initializeApp: () => Promise<InitializeAppResult>;
       cancelStartup: () => Promise<void>;

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("native completion notification fires once for a live successful round", async ({ page }) => {
-  await page.route("**/api/v1/agent/sessions/**", (route) => route.fulfill({ json: {} }));
+  await page.route("**/api/v1/agent/sessions/**", (route) => route.fulfill({ json: { success: true, can_continue: false, is_running: false } }));
   await page.goto("http://127.0.0.1:5175/e2e/history-harness.html");
   await page.waitForFunction(() => Boolean((window as any).historySession));
   const notifications = await page.evaluate(async () => {

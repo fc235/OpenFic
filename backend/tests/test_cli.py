@@ -1,6 +1,7 @@
 import sys
 import shutil
 import asyncio
+import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,13 +11,14 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 import pytest
 
 import app.cli as cli
+from app.storage import database_migration
 from uvicorn.config import Config
 
 
-def test_get_uvicorn_loop_factory_uses_selector_on_windows(monkeypatch) -> None:
+def test_get_uvicorn_loop_factory_uses_windows_compatible_factory(monkeypatch) -> None:
     monkeypatch.setattr(cli.sys, "platform", "win32")
 
-    assert cli._get_uvicorn_loop_factory() == "app.cli:_windows_selector_loop_factory"
+    assert cli._get_uvicorn_loop_factory() == "app.cli:_windows_proactor_loop_factory"
 
 
 def test_get_uvicorn_loop_factory_uses_default_on_non_windows(monkeypatch) -> None:
@@ -25,31 +27,31 @@ def test_get_uvicorn_loop_factory_uses_default_on_non_windows(monkeypatch) -> No
     assert cli._get_uvicorn_loop_factory() == "auto"
 
 
-def test_windows_selector_loop_factory_creates_selector_loop() -> None:
-    loop = cli._windows_selector_loop_factory()
-    try:
-        assert isinstance(loop, cli.asyncio.SelectorEventLoop)
-    finally:
-        loop.close()
+def test_windows_loop_factory_creates_winloop(monkeypatch) -> None:
+    monkeypatch.setattr(cli.sys, "platform", "win32")
+    windows_loop = Mock()
+    monkeypatch.setitem(sys.modules, "winloop", SimpleNamespace(new_event_loop=windows_loop))
+    assert cli._windows_proactor_loop_factory() is windows_loop.return_value
+    windows_loop.assert_called_once_with()
 
 
-def test_uvicorn_loads_windows_selector_loop_factory() -> None:
-    config = Config("app.main:app", loop="app.cli:_windows_selector_loop_factory")
+def test_uvicorn_loads_windows_compatible_loop_factory(monkeypatch) -> None:
+    monkeypatch.setattr(cli.sys, "platform", "win32")
+    windows_loop = Mock()
+    monkeypatch.setitem(sys.modules, "winloop", SimpleNamespace(new_event_loop=windows_loop))
+    config = Config("app.main:app", loop="app.cli:_windows_proactor_loop_factory", reload=True)
     factory = config.get_loop_factory()
     assert factory is not None
-    loop = factory()
-    try:
-        assert isinstance(loop, cli.asyncio.SelectorEventLoop)
-    finally:
-        loop.close()
+    assert factory() is windows_loop.return_value
+    windows_loop.assert_called_once_with()
 
 
-def test_dev_command_loads_windows_selector_loop_factory() -> None:
+def test_dev_command_loads_windows_proactor_loop_factory() -> None:
     justfile = Path(__file__).resolve().parents[1] / "justfile"
     content = justfile.read_text(encoding="utf-8")
 
     assert 'if os() == "windows"' in content
-    assert "--loop app.cli:_windows_selector_loop_factory" in content
+    assert "--loop app.cli:_windows_proactor_loop_factory" in content
 
 
 def test_handle_serve_passes_loop_factory_to_uvicorn(monkeypatch) -> None:
@@ -61,7 +63,7 @@ def test_handle_serve_passes_loop_factory_to_uvicorn(monkeypatch) -> None:
     monkeypatch.setattr(
         cli,
         "_get_uvicorn_loop_factory",
-        Mock(return_value="app.cli:_windows_selector_loop_factory"),
+        Mock(return_value="app.cli:_windows_proactor_loop_factory"),
     )
     monkeypatch.setitem(
         sys.modules,
@@ -79,7 +81,7 @@ def test_handle_serve_passes_loop_factory_to_uvicorn(monkeypatch) -> None:
 
     cli.handle_serve(type("Args", (), {"host": "127.0.0.1", "port": 8000})())
 
-    assert sys.modules["uvicorn"].Config.call_args.kwargs["loop"] == "app.cli:_windows_selector_loop_factory"
+    assert sys.modules["uvicorn"].Config.call_args.kwargs["loop"] == "app.cli:_windows_proactor_loop_factory"
     assert fastapi_app.state.uvicorn_server is uvicorn_server
     uvicorn_server.run.assert_called_once_with()
 
@@ -88,6 +90,80 @@ def test_serve_parser_accepts_auth_password() -> None:
     args = cli.build_parser().parse_args(["serve", "--auth-password", "secret"])
 
     assert args.auth_password == "secret"
+
+
+def test_db_migrate_parser_accepts_target_and_source_urls() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "db",
+            "migrate",
+            "--target-url",
+            "sqlite:////tmp/target.db",
+            "--source-url",
+            "sqlite:////tmp/source.db",
+        ]
+    )
+
+    assert args.target_url == "sqlite:////tmp/target.db"
+    assert args.source_url == "sqlite:////tmp/source.db"
+
+
+def test_db_migrate_parser_accepts_orphan_repair_flag() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "db",
+            "migrate",
+            "--target-url",
+            "sqlite:////tmp/target.db",
+            "--repair-orphaned-references",
+        ]
+    )
+
+    assert args.repair_orphaned_references is True
+
+
+def test_handle_db_migrate_prints_compact_redacted_summary(
+    monkeypatch,
+    capsys,
+) -> None:
+    ensure_data_dir = Mock()
+    monkeypatch.setattr(cli, "_ensure_data_dir", ensure_data_dir)
+    migrate = Mock(
+        return_value=database_migration.MigrationReport(
+            source_dialect="sqlite",
+            target_dialect="postgresql",
+            table_count=3,
+            row_count=7,
+            checksum="checksum",
+        )
+    )
+    monkeypatch.setattr(database_migration, "migrate_database", migrate)
+    args = cli.build_parser().parse_args(
+        [
+            "db",
+            "migrate",
+            "--target-url",
+            "postgresql+psycopg://user:secret@host/db",
+            "--repair-orphaned-references",
+        ]
+    )
+
+    cli.handle_db_migrate(args)
+
+    output = capsys.readouterr().out
+    ensure_data_dir.assert_called_once_with()
+    assert "source=sqlite" in output
+    assert "target=postgresql" in output
+    assert "tables=3" in output
+    assert "rows=7" in output
+    assert "repairs=0" in output
+    assert "checks=rows,primary-keys,foreign-keys,checksum:ok" in output
+    assert "secret" not in output
+    migrate.assert_called_once_with(
+        target_url="postgresql+psycopg://user:secret@host/db",
+        source_url=None,
+        repair_orphaned_references=True,
+    )
 
 
 def test_handle_serve_sets_auth_password_environment(monkeypatch) -> None:
@@ -392,3 +468,79 @@ asyncio.run(main())
             await engine.dispose()
 
     asyncio.run(verify())
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Requires Windows event loop")
+def test_windows_loop_supports_subprocess_and_zmq() -> None:
+    import zmq
+    import zmq.asyncio
+
+    async def smoke_test():
+        context = zmq.asyncio.Context()
+        sender = context.socket(zmq.PAIR)
+        receiver = context.socket(zmq.PAIR)
+        try:
+            sender.bind("inproc://windows-proactor-smoke")
+            receiver.connect("inproc://windows-proactor-smoke")
+            pending = receiver.recv()
+            await sender.send(b"background-message")
+            assert await asyncio.wait_for(pending, 5) == b"background-message"
+            process = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-c",
+                "print('tunnel-subprocess')",
+                stdout=asyncio.subprocess.PIPE,
+            )
+            try:
+                output, _ = await asyncio.wait_for(process.communicate(), 5)
+                assert process.returncode == 0
+                assert output.strip() == b"tunnel-subprocess"
+            finally:
+                if process.returncode is None:
+                    process.kill()
+                    await process.wait()
+        finally:
+            sender.close(linger=0)
+            receiver.close(linger=0)
+            context.term()
+
+    loop = cli._windows_proactor_loop_factory()
+    try:
+        loop.run_until_complete(smoke_test())
+    finally:
+        loop.close()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Requires Windows event loop")
+def test_windows_loop_supports_postgresql_and_subprocess() -> None:
+    database_url = os.getenv("OPENFIC_TEST_DATABASE_URL", "")
+    if not database_url.startswith("postgresql"):
+        pytest.skip("Set OPENFIC_TEST_DATABASE_URL to test PostgreSQL")
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    async def verify():
+        engine = create_async_engine(database_url)
+        try:
+            async with engine.connect() as connection:
+                assert (await connection.execute(text("SELECT 42"))).scalar_one() == 42
+            process = await asyncio.create_subprocess_exec(
+                sys.executable, "-c", "print('postgresql-subprocess')",
+                stdout=asyncio.subprocess.PIPE,
+            )
+            try:
+                output, _ = await asyncio.wait_for(process.communicate(), 10)
+                assert process.returncode == 0
+                assert output.strip() == b"postgresql-subprocess"
+            finally:
+                if process.returncode is None:
+                    process.kill()
+                    await process.wait()
+        finally:
+            await engine.dispose()
+
+    loop = cli._windows_proactor_loop_factory()
+    try:
+        loop.run_until_complete(verify())
+    finally:
+        loop.close()

@@ -1,6 +1,7 @@
 <!doctype html><html><head><meta charset="utf-8" /></head><body><div id="root"></div>
 <script type="module">
 import React from "react";
+import { AppShellContext } from "../src/features/app-shell/components/app-shell-context";
 import { createRoot } from "react-dom/client";
 import { Theme } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
@@ -18,11 +19,14 @@ function App() {
  const save = async data => {
    window.saved.push(data);
    if (window.hold) await new Promise(resolve => window.releaseSave = resolve);
-   setCharacter(current => ({...current,...data}));
+   const updated = {...character,...data};
+   setCharacter(updated);
+   return updated;
  };
  return new URLSearchParams(location.search).has("world")
-   ? h(EntryEditor,{key:id,entry:{id,name:"条目",content:"initial",tokenCount:1},worldInfoId:"w",entries:[]})
+   ? h(EntryEditor,{key:id,entry:{id,name:"条目",content:"initial",tokenCount:1},worldInfoId:"w",entries:[],canSave:()=>true})
    : h(CharacterEditor,{key:id,character:{...character,id},onSave:save});
 }
-createRoot(document.getElementById("root")).render(h(QueryClientProvider,{client:new QueryClient({defaultOptions:{queries:{retry:false}}})},h(Theme,{},h(App))));
+const renderHarness = (node) => createRoot(document.getElementById("root")).render(React.createElement(AppShellContext.Provider, { value: { isMobile: matchMedia("(max-width: 767px)").matches } }, node));
+      renderHarness(h(QueryClientProvider,{client:new QueryClient({defaultOptions:{queries:{retry:false}}})},h(Theme,{},h(App))));
 </script></body></html>

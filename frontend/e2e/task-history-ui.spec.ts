@@ -49,12 +49,12 @@ test("an empty projected page advances the cursor and older history remains load
   page,
 }) => {
   const cursors: string[] = [];
-  await page.route("**/tasks/task-a/messages?*", async (route) => {
-    cursors.push(new URL(route.request().url()).searchParams.get("before_seq")!);
+  await page.route("**/tasks/task-a?*", async (route) => {
+    cursors.push(new URL(route.request().url()).searchParams.get("cursor")!);
     await route.fulfill({
       json:
         cursors.length === 1
-          ? { messages: [], has_more: true, next_before_seq: 50 }
+          ? { messages: [], messages_has_more: true, messages_cursor: 50 }
           : {
               messages: [
                 {
@@ -64,8 +64,8 @@ test("an empty projected page advances the cursor and older history remains load
                   created_at: new Date().toISOString(),
                 },
               ],
-              has_more: false,
-              next_before_seq: null,
+              messages_has_more: false,
+              messages_cursor: null,
             },
     });
   });
@@ -84,7 +84,7 @@ test("rollback rejects an in-flight old page and retains access to earlier histo
   page,
 }) => {
   let finish: (() => void) | undefined;
-  await page.route("**/tasks/task-a/messages?*", async (route) => {
+  await page.route("**/tasks/task-a?*", async (route) => {
     await new Promise<void>((resolve) => {
       finish = resolve;
     });
@@ -98,11 +98,27 @@ test("rollback rejects an in-flight old page and retains access to earlier histo
             created_at: new Date().toISOString(),
           },
         ],
-        has_more: false,
-        next_before_seq: null,
+        messages_has_more: false,
+        messages_cursor: null,
       },
     });
   });
+  await page.route("**/tasks/task-a", (route) =>
+    route.fulfill({
+      json: {
+        id: "task-a",
+        agent_session_id: "session-a",
+        messages_cursor: 100,
+        messages_has_more: true,
+        messages: Array.from({ length: 10 }, (_, i) => ({
+          id: `recent-${i}`,
+          role: "user",
+          content: `Recent message ${i}`,
+          created_at: new Date().toISOString(),
+        })),
+      },
+    }),
+  );
   await page.route("**/agent/sessions/session-a/rollback", (route) =>
     route.fulfill({
       json: {
@@ -163,7 +179,7 @@ test("prepending into an existing assistant block keeps its visible content anch
   await page.evaluate(async () => {
     for (let i = 0; i < 10; i++) await new Promise(requestAnimationFrame);
   });
-  await page.route("**/tasks/task-a/messages?*", (route) =>
+  await page.route("**/tasks/task-a?*", (route) =>
     route.fulfill({
       json: {
         messages: Array.from({ length: 20 }, (_, i) => ({
@@ -173,14 +189,13 @@ test("prepending into an existing assistant block keeps its visible content anch
           content: `Older paragraph ${i}`,
           created_at: new Date().toISOString(),
         })),
-        has_more: false,
-        next_before_seq: null,
+        messages_has_more: false,
+        messages_cursor: null,
       },
     }),
   );
-  await page.locator(".ai-sidebar-messages").evaluate((el) => {
-    el.scrollTop = 0;
-  });
+  await page.locator(".ai-sidebar-messages").hover();
+  await page.mouse.wheel(0, -10000);
   await expect
     .poll(() => page.evaluate(() => (window as any).historySession.messages.length))
     .toBe(50);
@@ -190,8 +205,8 @@ test("prepending into an existing assistant block keeps its visible content anch
 test("scrolling to the top loads older history and preserves the visible anchor", async ({
   page,
 }) => {
-  await page.route("**/tasks/task-a/messages?*", async (route) => {
-    expect(new URL(route.request().url()).searchParams.get("before_seq")).toBe("100");
+  await page.route("**/tasks/task-a?*", async (route) => {
+    expect(new URL(route.request().url()).searchParams.get("cursor")).toBe("100");
     await route.fulfill({
       json: {
         messages: Array.from({ length: 20 }, (_, i) => ({
@@ -200,14 +215,13 @@ test("scrolling to the top loads older history and preserves the visible anchor"
           content: `Older message ${i}`,
           created_at: new Date().toISOString(),
         })),
-        has_more: false,
-        next_before_seq: null,
+        messages_has_more: false,
+        messages_cursor: null,
       },
     });
   });
-  await page.locator(".ai-sidebar-messages").evaluate((el) => {
-    el.scrollTop = 0;
-  });
+  await page.locator(".ai-sidebar-messages").hover();
+  await page.mouse.wheel(0, -10000);
   await expect
     .poll(() => page.evaluate(() => (window as any).historySession.messages.length))
     .toBe(50);
@@ -222,7 +236,7 @@ test("failed history requests expose retry and a stale page cannot enter another
 }) => {
   let requests = 0;
   let finish: (() => void) | undefined;
-  await page.route("**/tasks/task-a/messages?*", async (route) => {
+  await page.route("**/tasks/task-a?*", async (route) => {
     requests++;
     if (requests === 1) return route.fulfill({ status: 500, json: { detail: "failed" } });
     await new Promise<void>((resolve) => {
@@ -238,14 +252,13 @@ test("failed history requests expose retry and a stale page cannot enter another
             created_at: new Date().toISOString(),
           },
         ],
-        has_more: false,
-        next_before_seq: null,
+        messages_has_more: false,
+        messages_cursor: null,
       },
     });
   });
-  await page.locator(".ai-sidebar-messages").evaluate((el) => {
-    el.scrollTop = 0;
-  });
+  await page.locator(".ai-sidebar-messages").hover();
+  await page.mouse.wheel(0, -10000);
   await expect(page.getByRole("button", { name: /重试|Retry/ })).toBeVisible();
   await page.getByRole("button", { name: /重试|Retry/ }).click();
   await expect.poll(() => requests).toBe(2);
@@ -265,4 +278,17 @@ test("failed history requests expose retry and a stale page cannot enter another
   await expect
     .poll(() => page.evaluate(() => (window as any).historySession.messages.map((m: any) => m.id)))
     .toEqual(["new-session"]);
+});
+
+
+test("the fork navigator retains previews and reaches older requests after cursor pagination", async ({ page }) => {
+  await page.route("**/tasks/task-a?*", (route) => route.fulfill({ json: {
+    messages: Array.from({ length: 20 }, (_, i) => ({ id: `older-${i}`, role: "user", content: `Earlier request ${i}`, created_at: new Date().toISOString() })),
+    messages_has_more: false, messages_cursor: null,
+  }}));
+  await expect(page.locator(".agent-message-navigator-marker")).toHaveCount(30);
+  await page.evaluate(() => (window as any).historySession.loadOlderMessages());
+  await expect(page.locator(".agent-message-navigator-marker")).toHaveCount(50);
+  await page.getByRole("button", { name: "第 1 条用户消息：Earlier request 0", exact: true }).click();
+  await expect(page.getByText("Earlier request 0", { exact: true })).toBeInViewport();
 });

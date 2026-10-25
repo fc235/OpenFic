@@ -142,7 +142,8 @@
         });
       }
 
-      createRoot(document.getElementById("root")).render(
+      const renderHarness = (node) => createRoot(document.getElementById("root")).render(React.createElement(AppShellContext.Provider, { value: { isMobile: matchMedia("(max-width: 767px)").matches } }, node));
+      renderHarness(
         h(Theme, null, h(QueryClientProvider, { client: queryClient }, h(Harness))),
       );
     </script>

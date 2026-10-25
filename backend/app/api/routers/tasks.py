@@ -13,8 +13,8 @@ from app.agent_runtime.modes import AgentMode
 from app.agent_runtime.attachments import delete_attachments_for_task
 from app.agent_runtime.persistence.child_runs import list_child_runs_for_parent
 from app.agent_runtime.persistence.task_projection import (
-    load_task_messages_for_agent_session,
     load_task_message_page,
+    load_task_message_page_for_agent_session,
 )
 from app.agent_runtime.runner.checkpointer import (
     delete_checkpoints_for_thread,
@@ -100,21 +100,25 @@ async def _delete_checkpoint_threads(
 async def get_task(
     task_id: str,
     message_limit: int | None = Query(default=None, ge=1, le=200),
+    cursor: int | None = Query(default=None, ge=0),
+    page_size: int = Query(default=100, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
 ) -> TaskResponse:
     try:
         task = await task_service.get_task(session, task_id)
-        page = TaskMessagePage()
-        if task.agent_session_id and message_limit is not None:
-            page = await load_task_message_page(session, task.agent_session_id, limit=message_limit)
-            task_messages = page.messages
-        elif task.agent_session_id:
-            task_messages = await load_task_messages_for_agent_session(
-                session,
-                task.agent_session_id,
+        if message_limit is not None:
+            page = (
+                await load_task_message_page(session, task.agent_session_id, limit=message_limit)
+                if task.agent_session_id else TaskMessagePage()
             )
+            task_messages = page.messages
+            messages_cursor = page.next_before_seq
         else:
-            task_messages = []
+            page = await load_task_message_page_for_agent_session(
+                session, task.agent_session_id, cursor=cursor, page_size=page_size,
+            )
+            task_messages = page.messages
+            messages_cursor = page.cursor
 
         return TaskResponse(
             id=task.id,
@@ -123,7 +127,9 @@ async def get_task(
             mode=_require_agent_mode(task.mode),
             messages=task_messages,
             has_more_messages=page.has_more,
-            next_before_seq=page.next_before_seq,
+            next_before_seq=messages_cursor if page.has_more else None,
+            messages_cursor=messages_cursor,
+            messages_has_more=page.has_more,
             token_input=task.token_input,
             token_output=task.token_output,
             token_cache=task.token_cache,

@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
+  await page.route("**/api/v1/models", (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/v1/model-providers", (route) => route.fulfill({ json: [] }));
   await page.route("**/api/v1/settings", (route) =>
     route.fulfill({
       json: {
@@ -30,11 +32,13 @@ for (const mobile of [false, true]) {
       await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
     }
     if (mobile) await page.getByRole("button", { name: "通用", exact: true }).click();
-    await expect(page.getByRole("switch")).toHaveCount(7);
+    for (const name of ["段落自动缩进", "合并系统提示词", "自动压缩上下文", "自动裁剪旧工具输出", "错误遥测"]) {
+      await expect(page.getByRole("switch", { name, exact: true })).toHaveCount(1);
+    }
     for (const name of ["编辑器", "上下文", "高级"]) {
       await expect(page.getByRole("heading", { name, exact: true })).toHaveCount(1);
     }
-    const toggle = page.getByRole("switch", { name: "压缩系统提示词", exact: true });
+    const toggle = page.getByRole("switch", { name: "合并系统提示词", exact: true });
     const saved = page.waitForRequest(
       (request) => request.url().endsWith("/api/v1/settings") && request.method() === "PUT",
     );
@@ -57,6 +61,8 @@ for (const category of ["editor", "context", "advanced"]) {
     await page.goto(`http://127.0.0.1:5175/e2e/settings-overlay-harness.html?category=${category}`);
     await page.getByRole("button", { name: "设置", exact: true }).click();
     await expect(page.locator(".settings-sidebar-item--active")).toHaveText("通用");
-    await expect(page.getByRole("switch")).toHaveCount(7);
+    for (const name of ["段落自动缩进", "合并系统提示词", "自动压缩上下文", "自动裁剪旧工具输出", "错误遥测"]) {
+      await expect(page.getByRole("switch", { name, exact: true })).toHaveCount(1);
+    }
   });
 }

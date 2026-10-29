@@ -298,7 +298,8 @@ export function ReadingMode({ projectId, initialChapter, chapters, onClose }: Re
             disabled={!preferencesReady}
             onClick={() => {
               setPlaying(false);
-              setSettingsOpen((open) => !open);
+              if (settingsOpen) closeSettings();
+              else setSettingsOpen(true);
             }}
             aria-label={t("reading.settings")}
             aria-expanded={settingsOpen}

@@ -57,12 +57,75 @@ const pause = (page: Page) => page.getByRole("button", { name: "暂停自动翻�
 const scrollTop = (page: Page) =>
   page.getByTestId("reading-viewport").evaluate((el) => el.scrollTop);
 
+for (const zoom of [1.25, 1.5, 1.75]) {
+  test(`desktop ${zoom * 100}% scale page buttons keep advancing`, async ({
+    playwright,
+  }, testInfo) => {
+    const browser = await playwright.chromium.launch({
+      channel: testInfo.project.use.channel,
+      args: [`--force-device-scale-factor=${zoom}`],
+    });
+    try {
+      const context = await browser.newContext({
+        baseURL: testInfo.project.use.baseURL,
+        viewport: { width: 1280, height: 800 },
+        deviceScaleFactor: zoom,
+      });
+      const page = await context.newPage();
+      await setup(page);
+      await openReader(page);
+      const viewport = page.getByTestId("reading-viewport");
+      const step = await viewport.evaluate((el) => el.clientHeight - 40);
+      await next(page).click();
+      const first = await scrollTop(page);
+      await next(page).click();
+      await expect.poll(() => scrollTop(page)).toBeGreaterThan(first + step * 0.8);
+      await previous(page).click();
+      await expect.poll(() => scrollTop(page)).toBeLessThan(first + 2);
+      for (
+        let turns = 0;
+        turns < 30 && !(await page.getByRole("heading", { name: "章节B", exact: true }).count());
+        turns++
+      ) {
+        const before = await scrollTop(page);
+        await next(page).click();
+        await expect
+          .poll(
+            async () =>
+              (await page.getByRole("heading", { name: "章节B", exact: true }).count()) > 0 ||
+              (await scrollTop(page)) > before + 1,
+          )
+          .toBe(true);
+      }
+      await expect(page.getByRole("heading", { name: "章节B", exact: true })).toBeVisible();
+      await previous(page).click();
+      await expect(page.getByRole("heading", { name: "章节A", exact: true })).toBeVisible();
+      await next(page).click();
+      await expect(page.getByRole("heading", { name: "章节B", exact: true })).toBeVisible();
+    } finally {
+      await browser.close();
+    }
+  });
+}
+
 async function intervalOne(page: Page) {
   await page.getByRole("button", { name: "阅读设置", exact: true }).click();
   await page.getByLabel("自动翻页间隔（秒）", { exact: true }).fill("1");
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("自动翻页间隔（秒）", { exact: true })).not.toBeVisible();
 }
+
+test("desktop arrow paging works after closing settings with the header button", async ({
+  page,
+}) => {
+  await setup(page);
+  await openReader(page);
+  const settings = page.getByRole("button", { name: "阅读设置", exact: true });
+  await settings.click();
+  await settings.click();
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(0);
+});
 
 type NativeReadingTestWindow = Window & {
   OpenFicReading: { postMessage(message: string): void };

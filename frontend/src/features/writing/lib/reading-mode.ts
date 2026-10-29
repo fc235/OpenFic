@@ -74,8 +74,14 @@ export function getReadingLayout(
   const step = Math.max(1, viewport - Math.min(40, viewport / 2));
   const maxScrollTop = Math.max(0, nonNegativeFinite(scrollHeight) - viewport);
   const top = Math.min(maxScrollTop, nonNegativeFinite(scrollTop));
-  const pageCount = Math.ceil(maxScrollTop / step) + 1;
-  const pageIndex = top === maxScrollTop ? pageCount - 1 : Math.floor(top / step);
+  // Chromium can round scrollTop to fractional CSS pixels at desktop zoom/DPI.
+  // Accept that rounding at page boundaries instead of turning to the same page again.
+  const tolerance = Math.min(1, step / 4);
+  const pageCount = Math.ceil(Math.max(0, maxScrollTop - tolerance) / step) + 1;
+  const pageIndex =
+    maxScrollTop - top <= tolerance
+      ? pageCount - 1
+      : Math.min(pageCount - 1, Math.floor((top + tolerance) / step));
   return { step, maxScrollTop, pageCount, pageIndex };
 }
 

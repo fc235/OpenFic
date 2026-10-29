@@ -67,6 +67,14 @@ test("invalid dimensions and scroll positions yield finite clamped metrics", () 
   assert.equal(getReadingLayout(600, 1730, -10).pageIndex, 0);
 });
 
+test("fractional scroll positions at desktop scale do not stick on the previous page", () => {
+  const layout = getReadingLayout(600, 1730, 559.6);
+  assert.equal(layout.pageIndex, 1);
+  assert.equal(getReadingPageTarget("next", layout).scrollTop, 1120);
+  assert.equal(getReadingLayout(600, 1730, 1129.6).pageIndex, 3);
+  assert.equal(getReadingPageTarget("next", getReadingLayout(600, 1730, 1129.6)).chapterDelta, 1);
+});
+
 test("preferences normalize letters and remove duplicate bindings", () => {
   assert.deepEqual(
     normalizeReadingPreferences({

@@ -296,10 +296,10 @@ async def test_confirm_import_rejects_over_limit_content_before_project_creation
         data={"title": "超限导入"},
     )
 
-    assert response.status_code == 400
-    assert "内容超出限制" in response.json()["detail"]
+    assert response.status_code == 201
+    assert response.json()["chapter_count"] == 3
     projects_after = (await client.get("/api/v1/projects")).json()["total"]
-    assert projects_after == projects_before
+    assert projects_after == projects_before + 1
 
 
 @pytest.mark.asyncio
@@ -320,11 +320,10 @@ async def test_confirm_import_stream_rejects_over_limit_chapter_before_project_c
         for line in response.text.splitlines()
         if line.startswith("data: ")
     ]
-    error_event = next(event for event in events if event["type"] == "error")
-    assert error_event["type"] == "error"
-    assert "内容超出限制" in error_event["message"]
+    complete_event = next(event for event in events if event["type"] == "complete")
+    assert complete_event["chapter_count"] == 2
     projects_after = (await client.get("/api/v1/projects")).json()["total"]
-    assert projects_after == projects_before
+    assert projects_after == projects_before + 1
 
 
 @pytest.mark.asyncio
@@ -574,8 +573,8 @@ async def test_document_import_endpoints_preserve_order_and_placement(
         "/api/v1/import/documents/preview",
         files=[("files", ("too-long.txt", ("内容" * 100001).encode(), "text/plain"))],
     )
-    assert response.status_code == 400, response.text
-    assert "内容超出限制" in response.json()["detail"]
+    assert response.status_code == 200, response.text
+    assert response.json()["chapter_count"] == 3
     response = await client.post(
         "/api/v1/import/documents/confirm", files=files, data={"title": "多文档"}
     )
@@ -717,7 +716,7 @@ async def test_import_documents_rolls_back_all_files(
     before_activity_count = (await session.execute(activity_count)).scalar_one()
     files = [
         ("files", ("valid.txt", "第十章 有效\n\n新增正文".encode(), "text/plain")),
-        ("files", ("oversized.txt", ("内容" * 100001).encode(), "text/plain")),
+        ("files", ("invalid.txt", b"", "text/plain")),
     ]
     response = await client.post(
         f"{project_url}/chapter-imports",
@@ -728,7 +727,7 @@ async def test_import_documents_rolls_back_all_files(
         },
     )
     assert response.status_code == 400, response.text
-    assert "内容超出限制" in response.json()["detail"]
+    assert "文件内容为空" in response.json()["detail"]
     after_tree = (await client.get(f"{project_url}/chapters")).json()
     after_project = (await client.get(project_url)).json()
     assert after_tree == before_tree
@@ -811,7 +810,7 @@ async def test_failed_existing_project_document_import_does_not_run_index_integr
         f"/api/v1/projects/{project_id}/chapter-imports",
         files=[
             ("files", ("valid.txt", "有效正文".encode(), "text/plain")),
-            ("files", ("oversized.txt", ("内容" * 100001).encode(), "text/plain")),
+            ("files", ("invalid.txt", b"", "text/plain")),
         ],
     )
 

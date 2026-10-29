@@ -8,6 +8,11 @@ import posixpath
 from typing import Literal
 import zipfile
 
+from app.core.editor_content_limits import (
+    MAX_EDITOR_CONTENT_CHARACTERS,
+    MAX_EDITOR_CONTENT_LINES,
+    count_editor_content_lines,
+)
 from app.core.txt_parser import (
     ParseResult,
     ParsedChapter,
@@ -61,15 +66,85 @@ def parse_project_import(
     suffix = get_import_suffix(filename)
     if suffix in SUPPORTED_TEXT_SUFFIXES:
         if split_mode == "manual":
-            return _parse_manual_text(content, chunk_size)
-        return parse_txt_content(content)
-    if suffix == ".zip":
-        return _parse_zip_archive(content)
-    if suffix == ".epub":
+            result = _parse_manual_text(content, chunk_size)
+        else:
+            result = parse_txt_content(content)
+    elif suffix == ".zip":
+        result = _parse_zip_archive(content)
+    elif suffix == ".epub":
         from app.core.epub_parser import parse_epub_content
 
-        return parse_epub_content(filename, content)
-    raise ValueError("不支持的文件类型，仅支持 .txt、.md、.zip 或 .epub 文件")
+        result = parse_epub_content(filename, content)
+    else:
+        raise ValueError("不支持的文件类型，仅支持 .txt、.md、.zip 或 .epub 文件")
+    return _split_oversized_chapters(result)
+
+
+def _max_end(content: str, start: int) -> int:
+    """Find the longest prefix satisfying both editor limits."""
+    low, high = start, min(len(content), start + MAX_EDITOR_CONTENT_CHARACTERS)
+    while low < high:
+        mid = (low + high + 1) // 2
+        if count_editor_content_lines(content[start:mid]) <= MAX_EDITOR_CONTENT_LINES:
+            low = mid
+        else:
+            high = mid - 1
+    # Keep CRLF together so splitting does not create an extra logical line.
+    if low < len(content) and content[low - 1:low + 1] == "\r\n":
+        low -= 1
+    return low
+
+
+def _segment_count(content: str, start: int) -> int:
+    count = 0
+    while start < len(content):
+        start = _max_end(content, start)
+        count += 1
+    return count
+
+
+def _split_oversized_chapters(result: ParseResult) -> ParseResult:
+    for volume in result.volumes:
+        chapters = []
+        for chapter in volume.chapters:
+            content = chapter.content
+            count = _segment_count(content, 0)
+            if count <= 1:
+                chapters.append(chapter)
+                continue
+            start = 0
+            for index in range(count):
+                remaining = count - index - 1
+                if not remaining:
+                    end = len(content)
+                else:
+                    maximum = _max_end(content, start)
+                    target = start + (len(content) - start) // (remaining + 1)
+                    low, high = start + 1, maximum
+                    while low < high:
+                        mid = (low + high) // 2
+                        if _segment_count(content, mid) <= remaining:
+                            high = mid
+                        else:
+                            low = mid + 1
+                    end = max(low, min(target, maximum))
+                    if content[end - 1:end + 1] == "\r\n":
+                        end = end + 1 if end < maximum else end - 1
+                part = content[start:end]
+                suffix = ("上", "下")[index] if count == 2 else (
+                    ("上", "中", "下")[index] if count == 3 else str(index + 1)
+                )
+                chapters.append(ParsedChapter(
+                    title=f"{chapter.title}（{suffix}）",
+                    content=part,
+                    word_count=_count_words(part),
+                ))
+                start = end
+        volume.chapters = chapters
+    all_chapters = [chapter for volume in result.volumes for chapter in volume.chapters]
+    result.chapter_count = len(all_chapters)
+    result.total_word_count = sum(chapter.word_count for chapter in all_chapters)
+    return result
 
 
 def _parse_manual_text(content: bytes, chunk_size: int) -> ParseResult:

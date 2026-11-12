@@ -14,6 +14,7 @@ import { RightSidebarPanel } from "@/features/app-shell/components/right-sidebar
 import type { AssistantSidebarState } from "@/features/assistant";
 import { useMobileSidebarSwipe } from "@/hooks/use-mobile-sidebar-swipe";
 import { usePersistedPanelLayout } from "@/hooks/use-persisted-panel-layout";
+import type { Chapter } from "@/lib/chapter.types";
 
 import { ChapterEditor } from "../components/chapter-editor";
 import { EditorTabs, EmptyEditorTabs } from "../components/editor-tabs";
@@ -27,6 +28,9 @@ import { useTabsStore, useActiveTabId, useTabs, useTabsLoaded } from "../store/u
 import { useWritingStore } from "../store/use-writing-store";
 
 const PANEL_LAYOUT_KEY = "panel-layout.writing";
+const ReadingMode = lazy(() =>
+  import("../components/reading-mode").then((module) => ({ default: module.ReadingMode })),
+);
 const PANEL_IDS = ["left-sidebar", "editor", "right-sidebar"];
 const SummaryPanel = lazy(() =>
   import("../components/summary-panel").then((module) => ({ default: module.SummaryPanel })),
@@ -93,6 +97,11 @@ export function WritingPage() {
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [hasOpenedSummary, setHasOpenedSummary] = useState(false);
   const [hasEditorSelection, setHasEditorSelection] = useState(false);
+  const [readingChapter, setReadingChapter] = useState<Chapter | null>(null);
+
+  useEffect(() => {
+    setReadingChapter(null);
+  }, [projectId]);
   const addSelectionToConversationRef = useRef<(() => void) | null>(null);
   const [assistantState, setAssistantState] = useState<AssistantSidebarState>({
     agentStatus: "idle",
@@ -368,6 +377,7 @@ export function WritingPage() {
                     ) : (
                       <ChapterEditor
                         chapterId={activeRefId}
+                        onStartReading={setReadingChapter}
                         scrollTop={activeEditorScrollTop}
                         isAgentLocked={isAgentLocked}
                         onScrollPositionChange={handleChapterScrollPositionChange}
@@ -469,6 +479,7 @@ export function WritingPage() {
                   ) : (
                     <ChapterEditor
                       chapterId={activeRefId}
+                      onStartReading={setReadingChapter}
                       scrollTop={activeEditorScrollTop}
                       isAgentLocked={isAgentLocked}
                       onScrollPositionChange={handleChapterScrollPositionChange}
@@ -529,6 +540,16 @@ export function WritingPage() {
             open={isSummaryOpen}
             onOpenChange={handleSummaryOpenChange}
             trigger={null}
+          />
+        </Suspense>
+      )}
+      {readingChapter && readingChapter.projectId === projectId && (
+        <Suspense fallback={null}>
+          <ReadingMode
+            projectId={projectId}
+            initialChapter={readingChapter}
+            chapters={allChapters}
+            onClose={() => setReadingChapter(null)}
           />
         </Suspense>
       )}

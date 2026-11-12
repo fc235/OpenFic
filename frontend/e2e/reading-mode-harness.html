@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body style="margin: 0">
+    <div id="root"></div>
+    <script type="module">
+      import React from "react";
+      import { createRoot } from "react-dom/client";
+      import { Theme } from "@radix-ui/themes";
+      import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+      import { AppShellContext } from "../src/features/app-shell/components/app-shell-context";
+      import { ChapterEditor } from "../src/features/writing/components/chapter-editor";
+      import { ReadingMode } from "../src/features/writing/components/reading-mode";
+      import { Toaster } from "../src/components/toaster";
+      import "@radix-ui/themes/styles.css";
+      import "../src/styles/overrides/tiptap.css";
+      import "../src/i18n";
+      const h = React.createElement;
+      const chapters = (location.search.includes("single") ? ["a"] : ["a", "b"]).map(
+        (id, order) => ({
+          id,
+          projectId: "p",
+          volumeId: `volume-${id}`,
+          title: `章节${id.toUpperCase()}`,
+          order,
+          wordCount: 100,
+          createdAt: "2026-10-25T00:00:00Z",
+          updatedAt: "2026-10-25T00:00:00Z",
+        }),
+      );
+      function App() {
+        const [chapter, setChapter] = React.useState(null);
+        return h(
+          React.Fragment,
+          {},
+          h(
+            "div",
+            { style: { height: "100vh" }, "data-testid": "editing-workspace" },
+            h(ChapterEditor, { chapterId: "a", onStartReading: setChapter }),
+          ),
+          chapter &&
+            h(ReadingMode, {
+              projectId: "p",
+              initialChapter: chapter,
+              chapters,
+              onClose: () => setChapter(null),
+            }),
+          h(Toaster, { appearance: "light" }),
+        );
+      }
+      createRoot(document.getElementById("root")).render(
+        h(
+          AppShellContext.Provider,
+          { value: { isMobile: matchMedia("(max-width: 767px)").matches } },
+          h(
+            QueryClientProvider,
+            { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+            h(Theme, {}, h(App)),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

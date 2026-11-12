@@ -66,7 +66,11 @@ apiClient.interceptors.response.use(
       handleAuthenticationFailure();
     }
     // 开发环境记录错误日志
-    if (import.meta.env.DEV && !error.config?.url?.includes("/openai-codex/")) {
+    if (
+      import.meta.env.DEV &&
+      !error.config?.url?.includes("/openai-codex/") &&
+      !error.config?.url?.includes("/audio/")
+    ) {
       console.error("API Error:", error);
     }
     return Promise.reject(error);
@@ -2259,6 +2263,9 @@ function transformTaskMetadata(raw: Record<string, unknown>): TaskMetadata {
 function transformTask(raw: Record<string, unknown>): Task {
   return {
     ...transformTaskMetadata(raw),
+    messagesCursor: typeof raw.messages_cursor === "number" ? raw.messages_cursor : null,
+    messagesHasMore: raw.messages_has_more === true,
+
     messages: ((raw.messages as Record<string, unknown>[] | undefined) ?? []).map(
       transformTaskMessage,
     ),
@@ -2299,10 +2306,13 @@ export { subscribeBackgroundEvents, subscribeBackgroundProjection } from "./back
  */
 export async function fetchTask(
   taskId: string,
-  options?: { messageLimit?: number },
+  cursorOrOptions?: number | { messageLimit?: number },
 ): Promise<Task> {
   const response = await apiClient.get(`/tasks/${taskId}`, {
-    params: { message_limit: options?.messageLimit },
+    params:
+      typeof cursorOrOptions === "object"
+        ? { message_limit: cursorOrOptions.messageLimit }
+        : { cursor: cursorOrOptions },
   });
   return transformTask(response.data);
 }
@@ -2401,6 +2411,8 @@ import type {
   AgentSendMessageRequest,
   AgentSendMessageResponse,
   AgentSessionStateResponse,
+  AgentRunError,
+  AgentContinueResponse,
   AgentRollbackResponse,
   AgentCancelResponse,
   AgentInterruptBatchResponse,
@@ -2426,12 +2438,14 @@ export async function fetchAgentSessionState(
   const response = await apiClient.get(`/agent/sessions/${sessionId}`);
   const data = response.data as Record<string, unknown>;
   return {
+    currentError: transformAgentRunError(data.current_error),
     sessionId: String(data.session_id ?? sessionId),
     state:
       data.state && typeof data.state === "object" && !Array.isArray(data.state)
         ? (data.state as Record<string, unknown>)
         : {},
     isRunning: data.is_running === true,
+    canContinue: data.can_continue === true,
     interrupts: Array.isArray(data.interrupts)
       ? data.interrupts.filter((item): item is Record<string, unknown> =>
           Boolean(item && typeof item === "object" && !Array.isArray(item)),
@@ -2445,6 +2459,11 @@ export async function fetchAgentSessionChangeSummary(
 ): Promise<AgentSessionChanges> {
   const response = await apiClient.get(`/agent/sessions/${sessionId}/changes`);
   return transformAgentSessionChanges(response.data, sessionId);
+}
+
+export async function continueAgentSession(sessionId: string): Promise<AgentContinueResponse> {
+  const response = await apiClient.post(`/agent/sessions/${sessionId}/continue`);
+  return response.data;
 }
 
 export async function fetchAgentSessionChanges(
@@ -2625,11 +2644,24 @@ function transformActiveSubagentState(raw: Record<string, unknown>): ActiveSubag
   };
 }
 
+function transformAgentRunError(raw: unknown): AgentRunError | null {
+  if (
+    !isRecord(raw) ||
+    typeof raw.type !== "string" ||
+    typeof raw.reason !== "string" ||
+    typeof raw.round_id !== "string"
+  )
+    return null;
+  return { type: raw.type, reason: raw.reason, roundId: raw.round_id };
+}
+
 function transformSubagentSessionPayload(raw: Record<string, unknown>): SubagentSessionPayload {
   const metadata = raw.metadata;
   const metadataRecord = isRecord(metadata) ? metadata : null;
   const pendingApproval = isRecord(raw.pending_approval) ? raw.pending_approval : null;
   return {
+    currentError: transformAgentRunError(raw.current_error),
+    currentRequestId: typeof raw.current_request_id === "string" ? raw.current_request_id : null,
     childRunId: String(raw.child_run_id ?? ""),
     childThreadId: String(raw.child_thread_id ?? ""),
     parentSessionId: String(raw.parent_session_id ?? ""),
@@ -2645,6 +2677,8 @@ function transformSubagentSessionPayload(raw: Record<string, unknown>): Subagent
     contextInputTokens: Number(raw.context_input_tokens ?? 0),
     contextLength: Number(raw.context_length ?? 0),
     pendingApproval,
+    messagesCursor: typeof raw.messages_cursor === "number" ? raw.messages_cursor : null,
+    messagesHasMore: raw.messages_has_more === true,
     messages: ((raw.messages as Record<string, unknown>[] | undefined) ?? []).map(
       transformTaskMessage,
     ),
@@ -2660,8 +2694,11 @@ export async function fetchActiveSubagents(
   );
 }
 
-export async function fetchSubagentSession(childRunId: string): Promise<SubagentSessionPayload> {
-  const response = await apiClient.get(`/agent/subagents/${childRunId}`);
+export async function fetchSubagentSession(
+  childRunId: string,
+  cursor?: number,
+): Promise<SubagentSessionPayload> {
+  const response = await apiClient.get(`/agent/subagents/${childRunId}`, { params: { cursor } });
   return transformSubagentSessionPayload(response.data as Record<string, unknown>);
 }
 

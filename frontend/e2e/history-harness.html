@@ -15,15 +15,29 @@
       import { AgentMessages } from "../src/features/assistant/components/agent/agent-messages";
       import { AppShellContext } from "../src/features/app-shell/components/app-shell-context";
       import "../src/i18n";
+      import "../src/features/assistant/components/assistant-sidebar.css";
       const h = React.createElement;
       function Harness() {
+        const [historyStatusHost, setHistoryStatusHost] = React.useState(null);
         const session = useAgentSession({ projectId: "history-test", modelId: "test" });
-        window.historySession = session;
-        return h(
+        window.historySession = {
+          ...session,
+          loadSession: (id, messages, options = {}) =>
+            session.loadSession(id, messages, {
+              taskId: options.historyTask?.id ?? "task-a",
+              messagesCursor: options.historyTask?.nextBeforeSeq ?? null,
+              messagesHasMore: options.historyTask?.hasMoreMessages ?? false,
+              ...options,
+            }),
+          loadOlderMessages: session.loadEarlier,
+          isLoadingOlderMessages: session.isLoadingEarlier,
+          hasMoreMessages: session.messagesHasMore,
+        };
+        return h(React.Fragment, null, h("div", { ref: setHistoryStatusHost }), h(
           "div",
           {
-            className: "ai-sidebar-messages",
-            style: { height: "500px", overflow: "auto", width: "700px" },
+            className: "ai-sidebar-messages ai-sidebar-messages--frame",
+            style: { height: "500px", overflow: "auto", overflowAnchor: "none", width: "700px" },
           },
           h(AgentMessages, {
             messages: session.messages,
@@ -31,14 +45,16 @@
             isRollbacking: session.isRollbacking,
             status: session.status,
             currentStage: session.currentStage,
-            scrollToBottomKey: session.sessionId,
+            scrollToBottomKey: `${session.sessionId}:${session.sessionLoadVersion}`,
+            historyStatusHost,
+            historyGeneration: session.generation,
             onRollback: session.rollbackToRevision,
-            hasMoreMessages: session.hasMoreMessages,
-            isLoadingOlderMessages: session.isLoadingOlderMessages,
-            olderMessagesError: session.olderMessagesError,
-            onLoadOlder: session.loadOlderMessages,
+            messagesHasMore: session.messagesHasMore,
+            isLoadingEarlier: session.isLoadingEarlier,
+            hasEarlierError: session.hasEarlierError,
+            onLoadEarlier: session.loadEarlier,
           }),
-        );
+        ));
       }
       const noop = () => {};
       const shell = {
@@ -57,7 +73,15 @@
         registerAssistantSidebarHost: noop,
         clearAssistantSidebarHost: noop,
       };
-      createRoot(document.getElementById("root")).render(
+      const renderHarness = (node) =>
+        createRoot(document.getElementById("root")).render(
+          React.createElement(
+            AppShellContext.Provider,
+            { value: { isMobile: matchMedia("(max-width: 767px)").matches } },
+            node,
+          ),
+        );
+      renderHarness(
         h(
           QueryClientProvider,
           { client: new QueryClient() },

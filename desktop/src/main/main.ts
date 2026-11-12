@@ -3,7 +3,13 @@ import { mkdir } from "node:fs/promises";
 import { registerAppScheme, handleAppProtocol, setRuntimeConfig } from "./protocol.js";
 import { getDevDataDir, isDevMode, DEV_INSTANCE_ID, startDevBackend } from "./runtime/dev-backend.js";
 import { createMainWindow } from "./windows.js";
-import { readDesktopConfig, writeDesktopConfig } from "./config.js";
+import {
+  decryptDesktopAccessKey,
+  readDesktopConfig,
+  writeDesktopConfig,
+  type StoredDesktopConfig,
+  type StoredDesktopInstance,
+} from "./config.js";
 import { registerIpc } from "./ipc.js";
 import { throwIfAborted, waitForBackend } from "./health.js";
 import { ensurePortablePython, resolveRuntimeDir } from "./runtime/python.js";
@@ -221,6 +227,7 @@ async function startLocalBackend(
   startupProgress: StartupProgressTracker,
   signal: AbortSignal,
   preferredPort?: number,
+  accessKey?: string,
 ): Promise<string | null> {
   throwIfAborted(signal);
   const runtimeDir = resolveRuntimeDir(installDir);
@@ -296,19 +303,20 @@ async function startLocalBackend(
     signal,
     dataDir,
     preferredPort,
+    accessKey,
   );
   setBackend(backend);
   setBackendBaseUrl(backend.baseUrl);
   return maintenanceError;
 }
 
-function getActiveInstance(config: DesktopConfig): DesktopInstance | null {
+function getActiveInstance(config: StoredDesktopConfig): StoredDesktopInstance | null {
   return config.instances.find((instance) => instance.id === config.activeInstanceId) ?? config.instances[0] ?? null;
 }
 
 async function activateInstance(
   config: DesktopConfig,
-  instance: DesktopInstance,
+  instance: StoredDesktopInstance,
   startupProgress: StartupProgressTracker,
   signal: AbortSignal,
 ): Promise<{ compatibilityWarning: string | null; maintenanceWarning: string | null }> {
@@ -348,7 +356,14 @@ async function activateInstance(
   }
 
   try {
-    const maintenanceWarning = await startLocalBackend(instance.installDir, resolveDataDir(instance), startupProgress, signal);
+    const maintenanceWarning = await startLocalBackend(
+      instance.installDir,
+      resolveDataDir(instance),
+      startupProgress,
+      signal,
+      undefined,
+      decryptDesktopAccessKey(instance),
+    );
     return { compatibilityWarning: null, maintenanceWarning };
   } catch (error) {
     appendLog("runtime", `本地运行环境更新或启动失败：${error instanceof Error ? error.message : String(error)}`);
@@ -672,7 +687,7 @@ if (!gotLock) {
   });
 
   process.on("unhandledRejection", (reason) => {
-    writeStartupLog(`unhandledRejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}`);
+    writeStartupLog(`unhandledRejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}`);
     captureException(reason);
   });
 }

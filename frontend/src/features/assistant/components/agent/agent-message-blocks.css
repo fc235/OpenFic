@@ -3,6 +3,7 @@
   width: 100%;
   min-width: 0;
   min-height: 100%;
+  flex-shrink: 0;
 }
 
 .agent-messages-root[data-has-navigator="true"] {
@@ -96,6 +97,21 @@
   }
 }
 
+.agent-message-history-status {
+  min-height: 32px;
+  overflow-anchor: none;
+  background: var(--color-background);
+}
+
+.agent-messages-root[data-history-committing="true"]
+  :is(.agent-message-block, .agent-message-block-stack, .agent-message-navigator) {
+  pointer-events: none;
+}
+
+.agent-messages-root[data-history-committing="true"] .agent-message-virtual-list {
+  transform: translateY(var(--agent-history-shift, 0px));
+}
+
 .agent-message-scroll-content
   > :not(.agent-message-bottom-anchor)
   + :not(.agent-message-bottom-anchor) {
@@ -115,6 +131,7 @@
 }
 
 .agent-message-block[data-block-type="user"] {
+  display: flex;
   align-items: flex-end;
 }
 

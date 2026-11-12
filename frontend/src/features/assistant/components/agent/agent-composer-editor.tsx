@@ -255,6 +255,7 @@ export function AgentComposerEditor({
       }),
       Placeholder.configure({
         placeholder,
+        showOnlyWhenEditable: false,
       }),
       MentionNode.configure({
         onOpenMentionChapter,
@@ -356,11 +357,12 @@ export function AgentComposerEditor({
 
   useEffect(() => {
     if (!editor) return;
+    if (!value.trim() || editor.isFocused) return;
     const parsedSegments = parseAssistantMarkup(value);
     const hasOnlyMentions =
       parsedSegments.length > 0 &&
       parsedSegments.every((segment) => typeof segment !== "string" || !segment.trim());
-    if (hasOnlyMentions && !value.includes("\n") && !editor.isFocused) {
+    if (hasOnlyMentions && !value.includes("\n")) {
       editor.commands.focus("end");
     }
   }, [editor, value]);

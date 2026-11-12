@@ -29,6 +29,7 @@
     "vite.config.ts",
     "playwright.config.ts",
     "playwright.history.config.ts",
+    "playwright.integration.config.ts",
     "playwright.harness.config.ts"
   ]
 }

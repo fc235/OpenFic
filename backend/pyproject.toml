@@ -65,12 +65,16 @@ dependencies = [
     "python-socketio>=5.11.0",
     "pyyaml>=6.0.2",
     "pyzmq>=27.1.0",
+    "sherpa-onnx==1.13.8",
+    # The sdist metadata omits the split native runtime required by the wheels.
+    "sherpa-onnx-core==1.13.8",
     "sqlalchemy>=2.0.45",
     "sqlmodel>=0.0.27",
     "starlette-compress>=1.6.1",
     "tiktoken>=0.12.0",
     "tzdata>=2025.2",
     "uvicorn[standard]>=0.40.0",
+    "winloop>=0.8.1; sys_platform == 'win32'",
     "fastembed>=0.8.0",
     "pypinyin>=0.55.0",
     "tavily-python>=0.7.27",
@@ -90,10 +94,17 @@ dependencies = [
     "odfpy>=1.4.1",
     "ebooklib>=0.20",
     "extract-msg>=0.56.1",
+    "tornado>=6.5.2",
 ]
 
 [project.scripts]
 openfic = "app.cli:main"
+
+[project.optional-dependencies]
+postgresql = [
+    "langgraph-checkpoint-postgres>=3.1.2",
+    "psycopg[binary]>=3.3.5",
+]
 
 [dependency-groups]
 dev = [

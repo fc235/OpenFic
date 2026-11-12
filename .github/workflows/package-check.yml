@@ -12,171 +12,18 @@ concurrency:
   group: package-check-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-env:
-  PYTHON_VERSION: '3.12'
-  NODE_VERSION: '22.18.0'
-  PNPM_VERSION: '11.8.0'
-
 jobs:
-  frontend:
-    name: Frontend package
+  packages:
     if: "!startsWith(github.event.pull_request.head.ref, 'release-please--')"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
-      - name: Install dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile
-      - name: Build frontend package
-        working-directory: frontend
-        run: pnpm build
-      - uses: actions/upload-artifact@v7
-        with:
-          name: frontend-dist
-          path: frontend/dist/
+    uses: ./.github/workflows/package-build.yml
 
-  python:
-    name: Python package
-    if: "!startsWith(github.event.pull_request.head.ref, 'release-please--')"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-          cache-dependency-glob: backend/uv.lock
-      - name: Build Python package
-        working-directory: backend
-        run: uv build
-      - name: Build desktop-only backend wheel
-        run: node desktop/scripts/build-backend.mjs
-      - uses: actions/upload-artifact@v7
-        with:
-          name: backend-desktop-dist
-          path: backend/dist-desktop/*.whl
-
-  desktop:
-    name: Desktop (${{ matrix.os }} ${{ matrix.arch }})
-    needs: [frontend, python]
-    if: "!startsWith(github.event.pull_request.head.ref, 'release-please--')"
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: --win
-            arch: x64
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v8
-        with:
-          name: frontend-dist
-          path: frontend/dist
-      - uses: actions/download-artifact@v8
-        with:
-          name: backend-desktop-dist
-          path: backend/dist-desktop
-      - uses: pnpm/action-setup@v6
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: |
-            desktop/pnpm-lock.yaml
-            frontend/pnpm-lock.yaml
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile
-      - name: Install desktop dependencies
-        working-directory: desktop
-        run: pnpm install --frozen-lockfile
-      - name: Build desktop application
-        working-directory: desktop
-        run: pnpm build
-      - name: Build desktop package
-        working-directory: desktop
-        run: pnpm exec electron-builder --config electron-builder.yml ${{ matrix.target }} --${{ matrix.arch }} --publish never
-      - name: Verify Windows ZIP archives
-        if: runner.os == 'Windows'
-        working-directory: desktop
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          zip_files=(dist-electron/*.zip)
-          ((${#zip_files[@]}))
-          for zip_file in "${zip_files[@]}"; do 7z t "$zip_file"; done
-      - name: Install and launch Windows application
-        if: runner.os == 'Windows'
-        working-directory: desktop
-        timeout-minutes: 5
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $installer = @(Get-ChildItem -LiteralPath 'dist-electron' -Filter 'OpenFic-*-win-${{ matrix.arch }}-setup.exe')
-          if ($installer.Count -ne 1) { throw "Expected one Windows installer, found $($installer.Count)" }
-
-          $installDirectory = Join-Path $env:RUNNER_TEMP "openfic-${{ matrix.arch }}-$env:GITHUB_RUN_ID"
-          $userDataDirectory = Join-Path $env:RUNNER_TEMP "openfic-user-data-${{ matrix.arch }}-$env:GITHUB_RUN_ID"
-          $standardOutput = Join-Path $env:RUNNER_TEMP "openfic-${{ matrix.arch }}.out.log"
-          $standardError = Join-Path $env:RUNNER_TEMP "openfic-${{ matrix.arch }}.err.log"
-          $application = Join-Path $installDirectory 'OpenFic.exe'
-          $process = $null
-
-          try {
-            $installerProcess = Start-Process -FilePath $installer[0].FullName -ArgumentList @('/S', '/currentuser', "/D=$installDirectory") -Wait -PassThru
-            if ($installerProcess.ExitCode -ne 0) { throw "Windows installer exited with code $($installerProcess.ExitCode)" }
-            if (-not (Test-Path -LiteralPath $application)) { throw "Installed application was not found: $application" }
-
-            $process = Start-Process -FilePath $application -ArgumentList "--user-data-dir=$userDataDirectory" -RedirectStandardOutput $standardOutput -RedirectStandardError $standardError -PassThru
-            Start-Sleep -Seconds 10
-            if ($process.HasExited) {
-              Get-Content -LiteralPath $standardOutput, $standardError -ErrorAction SilentlyContinue
-              throw "Installed application exited before the startup check completed with code $($process.ExitCode)"
-            }
-          } finally {
-            if ($null -ne $process -and -not $process.HasExited) {
-              Stop-Process -Id $process.Id -Force
-              $process.WaitForExit(10000) | Out-Null
-            }
-            Remove-Item -LiteralPath $installDirectory, $userDataDirectory, $standardOutput, $standardError -Recurse -Force -ErrorAction SilentlyContinue
-          }
   summary:
     name: Summary
     if: "always() && !startsWith(github.event.pull_request.head.ref, 'release-please--')"
-    needs: [frontend, python, desktop]
+    needs: packages
     runs-on: ubuntu-latest
     steps:
       - name: Verify packages
         env:
-          FRONTEND_RESULT: ${{ needs.frontend.result }}
-          PYTHON_RESULT: ${{ needs.python.result }}
-          DESKTOP_RESULT: ${{ needs.desktop.result }}
-        run: |
-          for result in "$FRONTEND_RESULT" "$PYTHON_RESULT" "$DESKTOP_RESULT"; do
-            if [ "$result" = 'failure' ] || [ "$result" = 'cancelled' ]; then
-              exit 1
-            fi
-          done
+          RESULT: ${{ needs.packages.result }}
+        run: test "$RESULT" = success

@@ -82,6 +82,7 @@ import { buildAgentMessagesFromTaskMessages } from "../lib/task-message-agent-ma
 import { AgentInput, AgentMessages, useAgentSidebar } from "./agent";
 import { ActiveSubagentList } from "./agent/active-subagent-list";
 import { AgentSessionChangesDialog } from "./agent/agent-changes";
+import { AgentMessagesLoading } from "./agent/agent-messages";
 import { AgentSpecialPanels } from "./agent/agent-special-panels";
 import { getAgentSpecialPanels } from "./agent/agent-special-panels-state";
 import { DeepSeekBalance } from "./deepseek-balance";
@@ -339,6 +340,9 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
       [],
     );
     const [isLoadingTask, setIsLoadingTask] = useState(false);
+    const [isMessagesLoading, setIsMessagesLoading] = useState(false);
+    const [messageViewport, setMessageViewport] = useState<HTMLDivElement | null>(null);
+    const [historyStatusHost, setHistoryStatusHost] = useState<HTMLDivElement | null>(null);
     const [currentTaskTitle, setCurrentTaskTitle] = useState<string>("");
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
     const [navigateToMessageId, setNavigateToMessageId] = useState<string | null>(null);
@@ -433,6 +437,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
     );
     const isToolApprovalBypassEnabled = settings?.agentBypassToolApproval ?? false;
     const agentSidebarRef = useRef<ReturnType<typeof useAgentSidebar> | null>(null);
+    const taskLoadGenerationRef = useRef(0);
 
     useImperativeHandle(
       ref,
@@ -499,8 +504,11 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
 
     const handleAgentForkCreated = useCallback(
       async (response: AgentForkResponse) => {
+        const generation = ++taskLoadGenerationRef.current;
+        agentSidebarRef.current?.invalidatePagination();
         try {
           const fullTask = await fetchTask(response.task_id);
+          if (generation !== taskLoadGenerationRef.current) return;
           const forkTask: TaskListItem = {
             id: fullTask.id,
             projectId: fullTask.projectId,
@@ -526,7 +534,11 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
           }
           const sessionId = fullTask.agentSessionId;
           const sessionChanges = await fetchAgentSessionChangeSummary(sessionId);
+          if (generation !== taskLoadGenerationRef.current) return;
           agentSidebarRef.current?.loadSession(sessionId, agentMessages, {
+            taskId: fullTask.id,
+            messagesCursor: fullTask.messagesCursor,
+            messagesHasMore: fullTask.messagesHasMore,
             reconnect: false,
             isRemoteRunning: false,
             initialChanges: sessionChanges,
@@ -551,6 +563,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
           }));
           queryClient.invalidateQueries({ queryKey: ["tasks", projectId], exact: false });
         } catch (error) {
+          if (generation !== taskLoadGenerationRef.current) return;
           console.error("Failed to load fork task:", error);
           toast.error(t("assistant.forkLoadFailed"));
         }
@@ -655,6 +668,8 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
     }, [activeSubagents, isViewingSubagent]);
 
     const agentSidebar = useAgentSidebar({
+      onLoadingChange: setIsMessagesLoading,
+      historyStatusHost,
       projectId,
       scrollToBottomKey: currentTaskId,
       navigateToMessageId,
@@ -723,6 +738,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
       currentConversation?.kind === "subagent" ? currentConversation.childThreadId : null,
       handleConversationTokenUsage,
     );
+    const handleSubagentStatusEvent = subagentSession.handleStatusEvent;
 
     const currentConversationSessionId =
       currentConversation?.kind === "subagent"
@@ -810,6 +826,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
       });
       return () => {
         cancelled = true;
+        taskLoadGenerationRef.current += 1;
       };
     }, [projectId]);
 
@@ -856,6 +873,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
       const cleanup = subscribeSubagentStatusEvents(
         parentConversationSessionId,
         (event) => {
+          handleSubagentStatusEvent(event);
           setActiveSubagents((current) => upsertActiveSubagent(current, event));
           if (event.status === "completed" || event.status === "error" || !event.isActive) {
             void refreshAgentChanges();
@@ -885,7 +903,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
       return () => {
         cleanup();
       };
-    }, [parentConversationSessionId, refreshAgentChanges]);
+    }, [handleSubagentStatusEvent, parentConversationSessionId, refreshAgentChanges]);
 
     useEffect(() => {
       if (!projectId) return;
@@ -926,6 +944,13 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
           if (event.type === "task_run_status_updated" && event.task_id) {
             const taskId = event.task_id;
             const isRunning = event.is_running === true;
+            if (
+              event.is_running === false &&
+              event.agent_session_id &&
+              !queryClient.getQueryData(["task", taskId])
+            ) {
+              void agentSidebarRef.current?.refreshCanContinue(event.agent_session_id);
+            }
             queryClient.setQueryData(["task", taskId], (current) => {
               if (!current || typeof current !== "object") return current;
               return {
@@ -952,25 +977,46 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
         taskId: string,
         options: {
           initialTask?: TaskListItem;
-          showSuccessToast?: boolean;
         } = {},
       ): Promise<boolean> => {
+        const generation = ++taskLoadGenerationRef.current;
+        agentSidebar.invalidatePagination();
         setView("tasks");
         setIsLoadingTask(true);
         setActiveSubagents([]);
 
         try {
           const bundle = await loadAgentTaskBundle(taskId, {
-            fetchTask: (id) =>
-              fetchTask(
-                id,
-                options.initialTask?.matchedMessageId ? undefined : { messageLimit: 100 },
-              ),
+            fetchTask: async (id) => {
+              const task = await fetchTask(id);
+              const targetId = options.initialTask?.matchedMessageId;
+              while (
+                targetId &&
+                !task.messages.some((message) => message.id === targetId) &&
+                task.messagesHasMore &&
+                task.messagesCursor !== null
+              ) {
+                const cursor = task.messagesCursor;
+                const page = await fetchTask(id, cursor);
+                const ids = new Set(task.messages.map((message) => message.id));
+                task.messages = [
+                  ...page.messages.filter((message) => !ids.has(message.id)),
+                  ...task.messages,
+                ];
+                task.messagesCursor = page.messagesCursor;
+                task.messagesHasMore =
+                  page.messagesHasMore &&
+                  page.messagesCursor !== null &&
+                  page.messagesCursor < cursor;
+              }
+              return task;
+            },
             fetchAgentSessionState,
             fetchActiveSubagents,
             fetchAgentSessionChangeSummary,
           });
           const fullTask = bundle.task;
+          if (generation !== taskLoadGenerationRef.current) return false;
 
           if (!fullTask.agentSessionId) {
             toast.error(t("writing.aiSidebar.agentSessionNotFound"));
@@ -1003,10 +1049,18 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
           const isRemoteRunning = bundle.sessionState?.isRunning ?? false;
 
           agentSidebar.loadSession(sessionId, agentMessages, {
-            historyTask: fullTask,
+            taskId: fullTask.id,
+            messagesCursor: fullTask.messagesCursor,
+            messagesHasMore: fullTask.messagesHasMore,
             reconnect: true,
             isRemoteRunning,
             pendingInterrupts: bundle.sessionState?.interrupts,
+            currentError: bundle.sessionState?.currentError,
+            currentRoundId: bundle.sessionState
+              ? typeof bundle.sessionState.state.current_revision_id === "string"
+                ? bundle.sessionState.state.current_revision_id
+                : null
+              : fullTask.currentRevisionId,
             primaryAgentKey:
               typeof bundle.sessionState?.state.agent_key === "string"
                 ? bundle.sessionState.state.agent_key
@@ -1046,12 +1100,10 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
             ),
           }));
 
-          if (options.showSuccessToast !== false) {
-            toast.success(t("writing.aiSidebar.agentTaskLoaded"));
-          }
           setIsLoadingTask(false);
           return true;
         } catch {
+          if (generation !== taskLoadGenerationRef.current) return false;
           setIsLoadingTask(false);
           toast.error(t("writing.aiSidebar.taskLoadFailed"));
           return false;
@@ -1091,6 +1143,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
     );
 
     const backToTaskList = useCallback(() => {
+      taskLoadGenerationRef.current += 1;
       setSessionTotalUsage(createSessionTotalUsageState());
       setConversationUsageBySession({});
 
@@ -1152,16 +1205,20 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
       return hasIncompleteMidSummaries || hasIncompleteFarSummaries;
     }, [latestChapterOrder, summaryPanelData?.maintenance]);
 
-    const performSend = useCallback(() => {
-      const hasCurrentTask = Boolean(agentSidebar.sessionId);
+    const performSend = useCallback(
+      (messageOverride?: string) => {
+        const hasCurrentTask = Boolean(agentSidebar.sessionId);
+        const message = messageOverride ?? inputValue;
 
-      if (!hasCurrentTask && inputValue.trim()) {
-        const title = inputValue.trim();
-        setCurrentTaskTitle(title.length > 50 ? `${title.slice(0, 50)}...` : title);
-      }
+        if (!hasCurrentTask && message.trim()) {
+          const title = message.trim();
+          setCurrentTaskTitle(title.length > 50 ? `${title.slice(0, 50)}...` : title);
+        }
 
-      agentSidebar.onSend();
-    }, [inputValue, agentSidebar]);
+        void agentSidebar.onSend(messageOverride);
+      },
+      [inputValue, agentSidebar],
+    );
 
     const requestSendWithSummaryCheck = useCallback(
       (action: () => void) => {
@@ -1176,10 +1233,13 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
       [hasIncompleteContextSummaries],
     );
 
-    const handleSend = useCallback(() => {
-      if (!inputValue.trim() && pendingAttachments.length === 0) return;
-      requestSendWithSummaryCheck(performSend);
-    }, [inputValue, pendingAttachments.length, performSend, requestSendWithSummaryCheck]);
+    const handleSend = useCallback(
+      (messageOverride?: string) => {
+        if (!(messageOverride ?? inputValue).trim() && pendingAttachments.length === 0) return;
+        requestSendWithSummaryCheck(() => performSend(messageOverride));
+      },
+      [requestSendWithSummaryCheck, inputValue, pendingAttachments.length, performSend],
+    );
 
     const handleConfirmSummaryWarning = useCallback(() => {
       setSummaryWarningOpen(false);
@@ -1289,6 +1349,8 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
     const handleOpenSubagent = useCallback(
       (subagent: ActiveSubagentState) => {
         if (!parentConversationSessionId) return;
+        taskLoadGenerationRef.current += 1;
+        agentSidebarRef.current?.invalidatePagination();
         setView("tasks");
         setConversationState((current) =>
           openSubagentConversation(current, parentConversationSessionId, subagent),
@@ -1305,9 +1367,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
         typeof parentEntry.taskId === "string" &&
         parentEntry.taskId
       ) {
-        const restored = await loadTaskById(parentEntry.taskId, {
-          showSuccessToast: false,
-        });
+        const restored = await loadTaskById(parentEntry.taskId);
         if (!restored) return;
       }
       setConversationState((current) => returnToPrimaryConversation(current));
@@ -1641,7 +1701,20 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
           />
         ) : (
           <>
-            <Box className="ai-sidebar-messages ai-sidebar-messages--frame">
+            <Box
+              ref={setHistoryStatusHost}
+              className="ai-sidebar-history-status-host"
+            />
+            <Box
+              ref={setMessageViewport}
+              className="ai-sidebar-messages ai-sidebar-messages--frame"
+            >
+              {isLoadingTask || (shouldShowSubagentConversation && subagentSession.isLoading) ? (
+                <AgentMessagesLoading
+                  scrollParent={messageViewport}
+                  onLoadingChange={setIsMessagesLoading}
+                />
+              ) : null}
               {agentSidebar.isRollbacking ? (
                 <Flex
                   className="ai-sidebar-rollback-overlay"
@@ -1660,31 +1733,25 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
                   </Text>
                 </Flex>
               ) : null}
-              {isLoadingTask ? (
-                <Flex
-                  direction="column"
-                  align="center"
-                  justify="center"
-                  className="ai-sidebar-loading-state"
-                >
-                  <Spinner size={18} />
-                  <Text
-                    size="2"
-                    color="gray"
-                  >
-                    {t("assistant.loadingTask")}
-                  </Text>
-                </Flex>
-              ) : shouldShowSubagentConversation ? (
+              {isLoadingTask ||
+              (shouldShowSubagentConversation &&
+                subagentSession.isLoading) ? null : shouldShowSubagentConversation ? (
                 <AgentMessages
                   messages={subagentSession.messages}
+                  onLoadingChange={setIsMessagesLoading}
+                  historyStatusHost={historyStatusHost}
+                  onLoadEarlier={subagentSession.loadEarlier}
+                  isLoadingEarlier={subagentSession.isLoadingEarlier}
+                  messagesHasMore={subagentSession.messagesHasMore}
+                  hasEarlierError={subagentSession.hasEarlierError}
+                  historyGeneration={subagentSession.generation}
                   isRunning={subagentSession.isRunning}
                   isRollbacking={false}
                   status={subagentSession.status}
                   currentStage={subagentSession.currentStage}
                   scrollToBottomKey={
                     currentConversation?.kind === "subagent"
-                      ? currentConversation.childRunId
+                      ? currentConversation.childRunId + `:${subagentSession.sessionLoadVersion}`
                       : undefined
                   }
                   onRollback={async () => null}
@@ -1724,6 +1791,7 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
             </div>
 
             <AgentInput
+              voiceScope={`${projectId}:${currentTaskId ?? "new"}:${agentSidebar.sessionId ?? "new"}`}
               specialPanels={
                 isViewingSubagent ? (
                   <AgentSpecialPanels
@@ -1743,7 +1811,21 @@ export const AssistantSidebar = forwardRef<AssistantSidebarHandle, AssistantSide
               models={llmModelOptions}
               reasoningEffort={reasoningEffort}
               isSending={isSendingMessage}
-              disabled={isViewingSubagent || isLoadingTask}
+              canContinue={
+                !isViewingSubagent &&
+                !isLoadingTask &&
+                !isMessagesLoading &&
+                !agentSidebar.isCompacting &&
+                !agentSidebar.isRollbacking &&
+                projectedSubagentSpecialPanels.length === 0 &&
+                agentSidebar.canContinue
+              }
+              isContinuing={agentSidebar.isContinuing}
+              isStopping={agentSidebar.isStopping}
+              onContinue={isViewingSubagent ? undefined : agentSidebar.onContinue}
+              disabled={
+                isViewingSubagent || isLoadingTask || isMessagesLoading || agentSidebar.isStopping
+              }
               pendingMessage={isViewingSubagent ? null : agentSidebar.pendingMessage}
               isModelsLoading={isModelsLoading}
               modelsError={!!modelsError}

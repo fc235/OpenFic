@@ -48,6 +48,8 @@ export interface Task {
   messages: TaskMessage[];
   hasMoreMessages?: boolean;
   nextBeforeSeq?: number | null;
+  messagesCursor: number | null;
+  messagesHasMore: boolean;
   tokenInput: number;
   tokenOutput: number;
   tokenCache: number;
@@ -68,7 +70,10 @@ export interface TaskListResponse {
   total: number;
 }
 
-export type TaskMetadata = Omit<Task, "messages" | "hasMoreMessages" | "nextBeforeSeq">;
+export type TaskMetadata = Omit<
+  Task,
+  "messages" | "hasMoreMessages" | "nextBeforeSeq" | "messagesCursor" | "messagesHasMore"
+>;
 
 export interface TaskMessagePage {
   messages: TaskMessage[];

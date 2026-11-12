@@ -78,9 +78,11 @@ class TaskMessagePage(BaseModel):
 
 
 class TaskResponse(TaskMetadataResponse):
-    """任务详情；未请求分页时保留完整历史兼容性。"""
+    """任务详情，包含分页的对话历史。"""
 
     messages: list[TaskMessage] = Field(description="对话消息列表")
+    messages_cursor: int | None = None
+    messages_has_more: bool = False
     has_more_messages: bool = False
     next_before_seq: int | None = None
 

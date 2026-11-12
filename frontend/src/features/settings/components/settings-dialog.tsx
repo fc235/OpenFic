@@ -55,6 +55,10 @@ export function SettingsDialog({
         className="settings-dialog-surface"
         maxWidth="1180px"
         onInteractOutside={(event) => {
+          if (event.target instanceof Element && event.target.closest("[data-sonner-toaster]")) {
+            event.preventDefault();
+            return;
+          }
           if (dropdownOpenAtPointerDownRef.current) {
             dropdownOpenAtPointerDownRef.current = false;
             event.preventDefault();

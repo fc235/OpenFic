@@ -429,14 +429,6 @@ jobs:
           - os: ubuntu-24.04-arm
             electron_args: "--linux --arm64"
             artifact_name: desktop-linux-aarch64
-          - os: macos-15-intel
-            electron_args: "--mac --x64"
-            arch: x64
-            artifact_name: desktop-mac-x86_64
-          - os: macos-15
-            electron_args: "--mac --arm64"
-            arch: arm64
-            artifact_name: desktop-mac-aarch64
     runs-on: ${{ matrix.os }}
     env:
       ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache

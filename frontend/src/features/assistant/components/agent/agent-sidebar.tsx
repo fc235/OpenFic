@@ -165,6 +165,7 @@ export function useAgentSidebar({
 
       const attachmentsToSend = attachments;
 
+      scrollToBottomFnRef?.current?.();
       const sendPromise = agentSessionId
         ? sendAgentMessage(messageToSend, attachmentsToSend)
         : startAgentSession(messageToSend, attachmentsToSend);
@@ -184,6 +185,7 @@ export function useAgentSidebar({
       pendingMessage,
       attachments,
       onClearAttachments,
+      scrollToBottomFnRef,
     ],
   );
 
@@ -218,10 +220,6 @@ export function useAgentSidebar({
     (panel) => panel.kind === "approval",
   );
 
-  const loadChangeDetails = useCallback(
-    (revisionId?: string) => loadAgentChangeDetails(undefined, revisionId),
-    [loadAgentChangeDetails],
-  );
 
   return {
     messages: agentMessages,
@@ -248,7 +246,7 @@ export function useAgentSidebar({
     loadSession: loadAgentSession,
     invalidatePagination,
     refreshChanges: refreshAgentChanges,
-    loadChangeDetails,
+    loadChangeDetails: loadAgentChangeDetails,
     disconnectTransport: disconnectAgentTransport,
     reconnectTransport: reconnectAgentTransport,
     compactSession: compactAgentSession,

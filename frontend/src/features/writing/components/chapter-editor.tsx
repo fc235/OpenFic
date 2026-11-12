@@ -52,8 +52,6 @@ import {
 import { useChapterNavigationStore } from "../store/use-chapter-navigation-store";
 import { useTabsStore } from "../store/use-tabs-store";
 
-const MANUAL_SAVE_EVENT = "openfic:chapter-editor-manual-save";
-
 interface WordsCountModule {
   wordsCount: (text: string) => number;
 }
@@ -70,6 +68,7 @@ interface ChapterEditorProps {
   onChapterUpdate?: (chapter: Chapter) => void;
   onScrollPositionChange?: (chapterId: string, scrollTop: number) => void;
   onAddToConversation?: (markup: string) => void;
+  handlesChapterNavigation?: boolean;
   isAgentLocked?: boolean;
   onSelectionChange?: (hasSelection: boolean) => void;
   addSelectionToConversationRef?: React.MutableRefObject<(() => void) | null>;
@@ -84,6 +83,7 @@ interface ChapterEditorContentProps {
   onChapterUpdate?: (chapter: Chapter) => void;
   onScrollPositionChange?: (chapterId: string, scrollTop: number) => void;
   onAddToConversation?: (markup: string) => void;
+  handlesChapterNavigation?: boolean;
   isAgentLocked?: boolean;
   onSelectionChange?: (hasSelection: boolean) => void;
   addSelectionToConversationRef?: React.MutableRefObject<(() => void) | null>;
@@ -98,13 +98,17 @@ function ChapterEditorContent({
   onChapterUpdate,
   onScrollPositionChange,
   onAddToConversation,
+  handlesChapterNavigation = true,
   isAgentLocked = false,
   onSelectionChange,
   addSelectionToConversationRef,
 }: ChapterEditorContentProps) {
   const { t } = useTranslation();
-  const chapterNavigation = useChapterNavigationStore((state) => state.request);
+  const chapterNavigation = useChapterNavigationStore((state) =>
+    handlesChapterNavigation ? state.request : null,
+  );
   const navigationHighlightRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const manualSaveRef = useRef<() => void>(() => {});
   const updateMutation = useUpdateChapter();
   const { containerRef, scrollbarProps } = useScrollbarAutoHide();
   const editorContentRef = useRef<HTMLDivElement>(null);
@@ -257,7 +261,7 @@ function ChapterEditorContent({
               showLockedToast();
               return;
             }
-            window.dispatchEvent(new Event(MANUAL_SAVE_EVENT));
+            manualSaveRef.current();
           },
         },
       }),
@@ -265,12 +269,13 @@ function ChapterEditorContent({
     [isAgentLocked, openFind, openReplace, showLockedToast, t],
   );
   const initialContentRef = useRef(
-    initialDraft.content ? newlinesToHtml(initialDraft.content) : "",
+    initialDraft.content ? newlinesToHtml(initialDraft.content, true) : "",
   );
   const editor = useEditor({
     extensions: editorExtensions,
     editable: !isAgentLocked,
     content: initialContentRef.current,
+    parseOptions: { preserveWhitespace: "full" },
     onUpdate: ({ editor }) => {
       if (isAgentLocked) return;
       syncDirtyStateFromEditor(editor);
@@ -451,12 +456,9 @@ function ChapterEditorContent({
   }, [title]);
 
   useEffect(() => {
-    const handleManualSave = () => {
+    manualSaveRef.current = () => {
       void handleSave(true);
     };
-
-    window.addEventListener(MANUAL_SAVE_EVENT, handleManualSave);
-    return () => window.removeEventListener(MANUAL_SAVE_EVENT, handleManualSave);
   }, [handleSave]);
 
   useEffect(() => {
@@ -486,7 +488,7 @@ function ChapterEditorContent({
     }
 
     const nextTitle = chapter.title;
-    const nextContent = chapter.content ? newlinesToHtml(chapter.content) : "";
+    const nextContent = chapter.content ? newlinesToHtml(chapter.content, true) : "";
     const currentContent = editor.getHTML();
     lastSavedDraftRef.current = createChapterEditorDraft({
       title: nextTitle,
@@ -505,7 +507,10 @@ function ChapterEditorContent({
     }
 
     if (currentContent !== nextContent) {
-      editor.commands.setContent(nextContent, { emitUpdate: false });
+      editor.commands.setContent(nextContent, {
+        emitUpdate: false,
+        parseOptions: { preserveWhitespace: "full" },
+      });
       setLineNumberDigits(getLineNumberDigits(editor.state.doc.childCount));
       queueMicrotask(() => {
         setWordCount(wordsCount(editor.getText()));
@@ -697,6 +702,7 @@ export function ChapterEditor({
   onChapterUpdate,
   onScrollPositionChange,
   onAddToConversation,
+  handlesChapterNavigation = true,
   isAgentLocked = false,
   onSelectionChange,
   addSelectionToConversationRef,
@@ -709,13 +715,13 @@ export function ChapterEditor({
   });
 
   useEffect(() => {
-    if (!isError || data) return;
+    if (!handlesChapterNavigation || !isError || data) return;
     const request = useChapterNavigationStore.getState().request;
     if (!request || request.chapterId !== chapterId) return;
     useChapterNavigationStore.getState().consume(request.id);
     toast.error(t("assistant.chapterNavigation.unavailable"));
     useTabsStore.getState().closeTab(`chapter:${chapterId}`);
-  }, [isError, data, chapterId, t]);
+  }, [handlesChapterNavigation, isError, data, chapterId, t]);
 
   if (!chapterId) {
     return (
@@ -746,9 +752,10 @@ export function ChapterEditor({
     );
   }
 
+  // Background refetches must not remount the editor with an older draft snapshot.
   return (
     <ChapterEditorWorkingCopy
-      key={`${data.entity.id}:${data.draftUpdatedAt.getTime()}`}
+      key={data.entity.id}
       chapter={data.entity}
       scrollTop={scrollTop}
       initialDraft={data.draft}
@@ -757,6 +764,7 @@ export function ChapterEditor({
       onScrollPositionChange={onScrollPositionChange}
       onAddToConversation={onAddToConversation}
       isAgentLocked={isAgentLocked}
+      handlesChapterNavigation={handlesChapterNavigation}
       onSelectionChange={onSelectionChange}
       addSelectionToConversationRef={addSelectionToConversationRef}
     />
@@ -772,6 +780,7 @@ function ChapterEditorWorkingCopy({
   onScrollPositionChange,
   onAddToConversation,
   isAgentLocked,
+  handlesChapterNavigation,
   onSelectionChange,
   addSelectionToConversationRef,
 }: Omit<ChapterEditorContentProps, "workingCopy">) {
@@ -782,7 +791,6 @@ function ChapterEditorWorkingCopy({
 
   return (
     <ChapterEditorContent
-      key={`${chapter.id}:${initialDraftUpdatedAt.getTime()}`}
       chapter={chapter}
       scrollTop={scrollTop}
       initialDraft={initialDraft}
@@ -792,6 +800,7 @@ function ChapterEditorWorkingCopy({
       onScrollPositionChange={onScrollPositionChange}
       onAddToConversation={onAddToConversation}
       isAgentLocked={isAgentLocked}
+      handlesChapterNavigation={handlesChapterNavigation}
       onSelectionChange={onSelectionChange}
       addSelectionToConversationRef={addSelectionToConversationRef}
     />

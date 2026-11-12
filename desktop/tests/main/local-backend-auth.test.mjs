@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 test("local startup preserves the requested port and access key together", async (t) => {
-  t.mock.module("electron", { namedExports: { net: {} } });
+  t.mock.module("electron", { namedExports: { net: {}, app: { isPackaged: true } } });
   t.mock.module("../../dist/main/logging.js", { namedExports: { appendLog() {}, createLogStream() {} } });
   t.mock.module("../../dist/main/desktop-preferences.js", {
     namedExports: { readDesktopPreferences: async () => ({ lanEnabled: true }) },
   });
+  t.mock.module("../../dist/main/config.js", { namedExports: { readDesktopConfig: async () => ({ downloadSource: "default" }) } });
   const selections = [];
   t.mock.module("../../dist/main/ports.js", { namedExports: {
     resolveBackendPort: async (...args) => { selections.push(args); return 18473; },

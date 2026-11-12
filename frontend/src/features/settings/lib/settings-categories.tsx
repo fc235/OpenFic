@@ -7,6 +7,7 @@ import {
   FileText,
   Globe,
   Network,
+  Timer,
   Palette,
   Package,
   Summary as SummaryIcon,
@@ -24,6 +25,7 @@ export type SettingsCategory =
   | "tunnels"
   | "models"
   | "index"
+  | "session"
   | "context"
   | "summary"
   | "agent-tools"
@@ -65,6 +67,11 @@ export const SETTINGS_CATEGORY_ITEMS: SettingsCategoryItem[] = [
     id: "index",
     icon: <Database size={16} />,
     labelKey: "settings.index",
+  },
+  {
+    id: "session",
+    icon: <Timer size={16} />,
+    labelKey: "settings.session",
   },
   {
     id: "summary",

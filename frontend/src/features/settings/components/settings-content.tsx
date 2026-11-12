@@ -33,6 +33,7 @@ import { IndexSettings } from "../components/index-settings";
 import { ModelsSettings } from "../components/models-settings";
 import { PersonalizationSettings } from "../components/personalization-settings";
 import { RulesSettings } from "../components/rules-settings";
+import { SessionSettings } from "../components/session-settings";
 import { SettingsSidebar } from "../components/settings-sidebar";
 import { SkillsSettings } from "../components/skills-settings";
 import { SummarySettings } from "../components/summary-settings";
@@ -86,6 +87,7 @@ const CATEGORY_TITLE_KEY_MAP: Record<SettingsCategory, string> = {
   tunnels: "settings.tunnels",
   models: "settings.models",
   index: "settings.index",
+  session: "settings.session",
   context: "settings.context",
   summary: "settings.summary",
   "agent-tools": "settings.agentTools",
@@ -284,6 +286,7 @@ export function SettingsContent({
     activeCategory === "tunnels" ||
     activeCategory === "models" ||
     activeCategory === "index" ||
+    activeCategory === "session" ||
     activeCategory === "context" ||
     activeCategory === "summary" ||
     activeCategory === "agent-tools" ||
@@ -515,6 +518,7 @@ export function SettingsContent({
                 isAgentSettingsLockLoading={isAgentSettingsLockLoading}
               />
             ) : null}
+            {activeCategory === "session" ? <SessionSettings /> : null}
             {activeCategory === "summary" ? (
               <SummarySettings
                 onCloseSettings={onClose}

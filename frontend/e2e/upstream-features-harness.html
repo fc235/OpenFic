@@ -11,6 +11,7 @@
       import { Theme } from "@radix-ui/themes";
       import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
       import { AppShellContext } from "../src/features/app-shell/components/app-shell-context";
+      import { RightSidebar } from "../src/features/app-shell/components/right-sidebar";
       import { AgentInput } from "../src/features/assistant/components/agent/agent-input";
       import { AgentSessionChangesDialog } from "../src/features/assistant/components/agent/agent-changes";
       import { useAgentSidebar } from "../src/features/assistant/components/agent/agent-sidebar";
@@ -127,6 +128,12 @@
       }
 
       function Harness() {
+        if (mode === "right-sidebar")
+          return h(
+            "div",
+            { style: { width: 650, height: 700 } },
+            h(RightSidebar, { projectId: "p" }),
+          );
         if (mode === "context") return h(ContextSettings);
         if (mode === "connections")
           return h(ConnectionsSettings, {
@@ -150,7 +157,14 @@
       }
 
       await i18n.changeLanguage("en");
-      const renderHarness = (node) => createRoot(document.getElementById("root")).render(React.createElement(AppShellContext.Provider, { value: { isMobile: matchMedia("(max-width: 767px)").matches } }, node));
+      const renderHarness = (node) =>
+        createRoot(document.getElementById("root")).render(
+          React.createElement(
+            AppShellContext.Provider,
+            { value: { isMobile: matchMedia("(max-width: 767px)").matches } },
+            node,
+          ),
+        );
       renderHarness(
         h(
           Theme,

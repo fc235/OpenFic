@@ -39,7 +39,7 @@ function loadMathPlugin() {
   mathPluginPromise ??= Promise.all([
     import("@streamdown/math"),
     import("katex/dist/katex.min.css"),
-  ]).then(([module]) => module.math);
+  ]).then(([module]) => module.createMathPlugin({ singleDollarTextMath: true }));
   return mathPluginPromise;
 }
 

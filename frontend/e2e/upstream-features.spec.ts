@@ -206,3 +206,19 @@ test("session changes fetch only a summary until a revision is opened", async ({
       query: "?revision_id=r1",
     });
 });
+
+test("right sidebar creates session tabs without secure-context randomUUID", async ({ page }) => {
+  await mockApi(page);
+  await page.addInitScript(() =>
+    Object.defineProperty(crypto, "randomUUID", { value: undefined, configurable: true }),
+  );
+  await page.goto(`${harness}?mode=right-sidebar`);
+  await expect(
+    page.getByRole("tablist", { name: "Right sidebar tabs" }).getByRole("tab"),
+  ).toHaveCount(1);
+  await page.getByRole("combobox", { name: "New tab", exact: true }).click();
+  await page.getByRole("option", { name: "Session", exact: true }).click();
+  await expect(
+    page.getByRole("tablist", { name: "Right sidebar tabs" }).getByRole("tab"),
+  ).toHaveCount(2);
+});

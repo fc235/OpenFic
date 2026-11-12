@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from langchain_core.language_models import LanguageModelInput
@@ -54,6 +54,9 @@ class ModelConfig:
     presence_penalty: float | None = DEFAULT_PRESENCE_PENALTY
     repetition_penalty: float | None = DEFAULT_REPETITION_PENALTY
     reasoning_effort: ReasoningEffortInput | None = None
+    llm_connect_timeout: float | None = None
+    llm_chunk_timeout: float | None = None
+    llm_request_timeout: float | None = None
 
     def __post_init__(self) -> None:
         if self.reasoning_effort == "off":
@@ -97,16 +100,19 @@ def _three_level_reasoning_effort(
     return "high" if reasoning_effort in {"xhigh", "max"} else reasoning_effort
 
 
-def _request_timeout() -> tuple[float, float]:
+def _request_timeout(config: ModelConfig | None = None) -> tuple[float, float]:
     from app.settings import settings
 
-    return (settings.llm_connect_timeout, settings.llm_request_timeout)
+    return (
+        config.llm_connect_timeout if config and config.llm_connect_timeout is not None else settings.llm_connect_timeout,
+        config.llm_request_timeout if config and config.llm_request_timeout is not None else settings.llm_request_timeout,
+    )
 
 
-def _stream_chunk_timeout() -> float | None:
+def _stream_chunk_timeout(config: ModelConfig | None = None) -> float | None:
     from app.settings import settings
 
-    return settings.llm_chunk_timeout
+    return config.llm_chunk_timeout if config and config.llm_chunk_timeout is not None else settings.llm_chunk_timeout
 
 
 def _gemini_compatible_base_url(base_url: str) -> str:
@@ -171,8 +177,8 @@ def _openai_compatible_kwargs(
         reasoning_effort=_enabled_reasoning_effort(config),
         max_retries=0,
         stream_usage=True,
-        stream_chunk_timeout=_stream_chunk_timeout(),
-        timeout=_request_timeout(),
+        stream_chunk_timeout=_stream_chunk_timeout(config),
+        timeout=_request_timeout(config),
     )
     extra_body = {
         name: value
@@ -187,6 +193,15 @@ def _openai_compatible_kwargs(
     if extra_body:
         kwargs["extra_body"] = extra_body
     return kwargs
+
+
+def _has_google_thought_signature(extra_content: dict) -> bool:
+    """True when `extra_content` carries a non-empty Gemini thought signature."""
+    google = extra_content.get("google")
+    if not isinstance(google, dict):
+        return False
+    signature = google.get("thought_signature")
+    return isinstance(signature, str) and bool(signature)
 
 
 def create_chat_model(config: ModelConfig) -> Runnable[LanguageModelInput, BaseMessage]:
@@ -211,10 +226,11 @@ def create_chat_model(config: ModelConfig) -> Runnable[LanguageModelInput, BaseM
             temperature=_non_default(config.temperature, DEFAULT_TEMPERATURE),
             top_p=_non_default(config.top_p, DEFAULT_TOP_P),
             top_k=_non_default(config.top_k, DEFAULT_TOP_K),
-            max_tokens=config.max_tokens or 4096,
+            # Leave unset so langchain_anthropic picks the model profile's output limit.
+            max_tokens=config.max_tokens,
             effort=reasoning_effort,
             max_retries=0,
-            timeout=_request_timeout()[1],
+            timeout=_request_timeout(config)[1],
         ))
 
     if provider == "google-genai":
@@ -281,8 +297,8 @@ def create_chat_model(config: ModelConfig) -> Runnable[LanguageModelInput, BaseM
             reasoning_effort=reasoning_effort,
             max_retries=0,
             stream_usage=True,
-            stream_chunk_timeout=_stream_chunk_timeout(),
-            timeout=_request_timeout(),
+            stream_chunk_timeout=_stream_chunk_timeout(config),
+            timeout=_request_timeout(config),
         ))
 
     if provider == "mistral":
@@ -296,7 +312,7 @@ def create_chat_model(config: ModelConfig) -> Runnable[LanguageModelInput, BaseM
             top_p=_non_default(config.top_p, DEFAULT_TOP_P),
             max_tokens=config.max_tokens,
             max_retries=0,
-            timeout=_request_timeout()[1],
+            timeout=_request_timeout(config)[1],
         )
         if reasoning_effort:
             mistral_kwargs["model_kwargs"] = {"reasoning_effort": reasoning_effort}
@@ -327,7 +343,7 @@ def create_chat_model(config: ModelConfig) -> Runnable[LanguageModelInput, BaseM
             ),
             reasoning={"effort": reasoning_effort} if reasoning_effort else None,
             max_retries=0,
-            timeout=int(_request_timeout()[1] * 1000),
+            timeout=int(_request_timeout(config)[1] * 1000),
         ))
         headers = _model_request_headers(config)
         model.client.sdk_configuration.user_agent = headers["User-Agent"]
@@ -346,7 +362,7 @@ def create_chat_model(config: ModelConfig) -> Runnable[LanguageModelInput, BaseM
             max_tokens=config.max_tokens,
             reasoning_effort=_three_level_reasoning_effort(reasoning_effort),
             max_retries=0,
-            timeout=_request_timeout(),
+            timeout=_request_timeout(config),
             default_headers=_model_request_headers(config),
         )
         if config.top_p is not None:
@@ -421,6 +437,8 @@ def create_chat_model(config: ModelConfig) -> Runnable[LanguageModelInput, BaseM
             base_url=base_url or "https://api.openai.com/v1",
             reasoning_effort=reasoning_effort,
             default_headers=_model_request_headers(config),
+            connect_timeout=_request_timeout(config)[0],
+            request_timeout=_request_timeout(config)[1],
         )
 
     if provider == "nvidia-ai-endpoints":
@@ -439,8 +457,19 @@ def create_chat_model(config: ModelConfig) -> Runnable[LanguageModelInput, BaseM
         return model.with_thinking_mode(enabled=True) if reasoning_effort else model
 
     # OpenAI-compatible fallback (openai, huggingface, openai-compatible, unknown)
-    from langchain_core.outputs import ChatGenerationChunk
+    from langchain_core.messages import AIMessage as _AIMessage
+    from langchain_core.outputs import ChatGenerationChunk, ChatResult
     from langchain_openai import ChatOpenAI as _ChatOpenAI
+
+    # Only record thought signatures for the Gemini-via-OpenAI-compatible
+    # route: other provider types and endpoints must not see extra fields.
+    # Match on the URL hostname, not the whole URL string, so the host
+    # appearing in a path or as a suffix of another domain cannot misfire.
+    _record_tool_call_extra_content = provider == "openai-compatible" and (
+        isinstance(base_url, str)
+        and (urlparse(base_url).hostname or "").lower()
+        == "generativelanguage.googleapis.com"
+    )
 
     class ChatOpenAI(_ChatOpenAI):
         def _convert_chunk_to_generation_chunk(
@@ -473,6 +502,115 @@ def create_chat_model(config: ModelConfig) -> Runnable[LanguageModelInput, BaseM
                 generation_chunk.message.additional_kwargs["reasoning_content"] = (
                     reasoning_content
                 )
+            self._stash_tool_call_extra_content(
+                generation_chunk.message.additional_kwargs,
+                delta.get("tool_calls") if isinstance(delta, dict) else None,
+            )
             return generation_chunk
+
+        def _create_chat_result(
+            self,
+            response: dict | Any,
+            generation_info: dict | None = None,
+        ) -> ChatResult:
+            result = super()._create_chat_result(response, generation_info)
+            if not _record_tool_call_extra_content:
+                return result
+            response_dict = (
+                response
+                if isinstance(response, dict)
+                # `parsed` may hold arbitrary Pydantic models from structured
+                # output; mirror the upstream exclusion so this second dump
+                # does not serialize it.
+                else response.model_dump(
+                    exclude={"choices": {"__all__": {"message": {"parsed"}}}}
+                )
+            )
+            choices = response_dict.get("choices")
+            if not isinstance(choices, list):
+                return result
+            for choice, generation in zip(choices, result.generations, strict=False):
+                message = choice.get("message") if isinstance(choice, dict) else None
+                self._stash_tool_call_extra_content(
+                    generation.message.additional_kwargs,
+                    message.get("tool_calls") if isinstance(message, dict) else None,
+                )
+            return result
+
+        def _get_request_payload(
+            self,
+            input_: Any,
+            *,
+            stop: list[str] | None = None,
+            **kwargs: Any,
+        ) -> dict[str, Any]:
+            payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+            if not _record_tool_call_extra_content:
+                return payload
+            if isinstance(input_, list):
+                source_messages = input_
+            elif hasattr(input_, "to_messages"):
+                source_messages = input_.to_messages()
+            else:
+                return payload
+
+            payload_messages = payload.get("messages")
+            if not isinstance(payload_messages, list):
+                return payload
+
+            for source, target in zip(source_messages, payload_messages, strict=False):
+                if not isinstance(source, _AIMessage) or not isinstance(target, dict):
+                    continue
+                extra_by_id = source.additional_kwargs.get("tool_call_extra_content")
+                if not isinstance(extra_by_id, dict) or not extra_by_id:
+                    continue
+                target_tool_calls = target.get("tool_calls")
+                if not isinstance(target_tool_calls, list):
+                    continue
+                for target_tool_call in target_tool_calls:
+                    if not isinstance(target_tool_call, dict):
+                        continue
+                    extra_content = extra_by_id.get(target_tool_call.get("id"))
+                    if isinstance(extra_content, dict) and extra_content:
+                        cast(dict[str, Any], target_tool_call)["extra_content"] = (
+                            extra_content
+                        )
+            return payload
+
+        @staticmethod
+        def _stash_tool_call_extra_content(
+            additional_kwargs: dict,
+            raw_tool_calls: Any,
+        ) -> None:
+            """Keep per-tool-call `extra_content` (e.g. Gemini thought signatures).
+
+            langchain-openai drops `extra_content` when converting responses,
+            but OpenAI-compatible Gemini 3 endpoints reject the follow-up
+            request when a required thought signature is not sent back.
+            Stash it by tool call id so `_get_request_payload` can restore it.
+            Only entries carrying a non-empty
+            `extra_content.google.thought_signature` are kept.
+            """
+            if not _record_tool_call_extra_content:
+                return
+            if not isinstance(raw_tool_calls, list):
+                return
+            extra_by_id: dict[str, Any] = {}
+            for raw_tool_call in raw_tool_calls:
+                if not isinstance(raw_tool_call, dict):
+                    continue
+                extra_content = raw_tool_call.get("extra_content")
+                if not isinstance(extra_content, dict) or not extra_content:
+                    continue
+                if not _has_google_thought_signature(extra_content):
+                    continue
+                tool_call_id = raw_tool_call.get("id")
+                if isinstance(tool_call_id, str) and tool_call_id:
+                    extra_by_id[tool_call_id] = extra_content
+            if not extra_by_id:
+                return
+            stored = additional_kwargs.setdefault("tool_call_extra_content", {})
+            if isinstance(stored, dict):
+                stored.update(extra_by_id)
 
     return ChatOpenAI(**_openai_compatible_kwargs(config, base_url=base_url))

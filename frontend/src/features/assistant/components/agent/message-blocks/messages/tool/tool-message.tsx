@@ -31,6 +31,7 @@ import { UnregisteredToolMessage } from "../../tools/shared/tool-message-status"
 import {
   getChapterPayload,
   getNotePayload,
+  getSkillDiffCards,
   getToolErrorMessage,
   getWorldEntryPayload,
   resolveToolMessageVisibilityState,
@@ -194,7 +195,10 @@ export function ToolMessage({ message }: ToolMessageProps) {
   const worldEntryDiffPreview = isWorldEntryDiffTool(message)
     ? getWorldEntryDiffPreview(message)
     : null;
-  const usesDiffHeader = Boolean(chapterDiffPreview || noteDiffPreview || worldEntryDiffPreview);
+  const skillDiffCards = descriptor?.group === "skill" ? getSkillDiffCards(message) : null;
+  const usesDiffHeader = Boolean(
+    chapterDiffPreview || noteDiffPreview || worldEntryDiffPreview || skillDiffCards,
+  );
   const contentMode = usesDiffHeader ? "expandable" : (descriptor?.contentMode ?? "static");
   const defaultExpanded = descriptor?.defaultExpanded?.(message) ?? false;
   const [isExpanded, setIsExpanded] = useState(() => defaultExpanded);
@@ -222,7 +226,15 @@ export function ToolMessage({ message }: ToolMessageProps) {
     worldEntryDiffPreview?.sections.find((s) => s.type === "content") ?? null;
   const diffBodySection =
     chapterDiffBodySection ?? noteDiffBodySection ?? worldEntryDiffBodySection;
-  const diffChangeSummary = summarizeChapterDiffSection(diffBodySection);
+  const diffChangeSummary = skillDiffCards
+    ? skillDiffCards.reduce(
+        (summary, card) => {
+          const counts = summarizeChapterDiffSection(card.section);
+          return { added: summary.added + counts.added, removed: summary.removed + counts.removed };
+        },
+        { added: 0, removed: 0 },
+      )
+    : summarizeChapterDiffSection(diffBodySection);
   const chapter = getChapterPayload(message);
   const navigableChapterId =
     message.toolName === "edit_chapter" && !isRunning && !errorMessage
@@ -241,7 +253,9 @@ export function ToolMessage({ message }: ToolMessageProps) {
       ? (noteDiffPreview.note_title ?? note?.title)
       : worldEntryDiffPreview
         ? (worldEntryDiffPreview.entry_title ?? worldEntry?.title)
-        : undefined;
+        : skillDiffCards
+          ? detail
+          : undefined;
   const visibilityState = resolveToolMessageVisibilityState({
     message,
     contentMode,

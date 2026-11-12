@@ -20,6 +20,31 @@
     "loadFailed": "资料加载失败，请关闭后重试。",
     "saveFailed": "保存失败。请确认 Agent 已停止运行，再重试。"
   },
+  "rightSidebar": {
+    "tabs": "右侧栏标签页",
+    "scrollTabs": "滚动右侧栏标签页",
+    "newTab": "新建标签页",
+    "agent": "会话",
+    "chapter": "章节编辑",
+    "character": "角色编辑",
+    "world_info_entry": "世界书条目编辑",
+    "collapse": "收起右侧栏",
+    "expand": "展开右侧栏",
+    "closeTab": "关闭 {{title}} 标签页",
+    "closeRight": "关闭右侧标签页",
+    "runningTab": "请先停止会话，再关闭标签页",
+    "empty": "尚未打开标签页",
+    "emptyHint": "点击 + 选择要打开的内容",
+    "selectItem": "选择{{type}}的条目",
+    "selectHint": "从当前项目中选择要打开的内容。",
+    "search": "搜索标题",
+    "loading": "正在加载...",
+    "chapterCount": "{{count}} 章",
+    "wordCount": "{{count}} 字",
+    "tokenCount": "{{count}} Tokens",
+    "noResults": "没有找到匹配的条目",
+    "loadFailed": "内容加载失败，条目可能已被删除或暂时无法访问"
+  },
   "common": {
     "confirm": "确认",
     "cancel": "取消",
@@ -1025,6 +1050,39 @@
         "name": "引用技能参考文档",
         "description": "读取指定技能的某个参考文档内容"
       },
+      "listSkills": {
+        "name": "列出技能",
+        "description": "查看全部技能，并读取关闭的自定义技能及其参考文档。"
+      },
+      "getSkill": {
+        "name": "查看技能",
+        "description": "查看指定技能的完整信息和参考文档，不受当前 Agent 技能启用状态限制。"
+      },
+      "getSkillReferenceDoc": {
+        "name": "查看技能参考文档",
+        "description": "查看指定技能的完整参考文档，不受当前 Agent 技能启用状态限制。"
+      },
+      "createSkill": {
+        "name": "创建技能",
+        "description": "创建默认关闭且没有参考文档的自定义技能。"
+      },
+      "editSkill": { "name": "编辑技能", "description": "修改关闭的自定义技能。" },
+      "createSkillReferenceDoc": {
+        "name": "创建技能文档",
+        "description": "为关闭的自定义技能创建参考文档。"
+      },
+      "editSkillReferenceDoc": {
+        "name": "编辑技能参考文档",
+        "description": "修改关闭的自定义技能的参考文档。"
+      },
+      "deleteSkill": {
+        "name": "删除技能",
+        "description": "删除关闭的自定义技能及其全部参考文档。"
+      },
+      "deleteSkillReferenceDoc": {
+        "name": "删除技能参考文档",
+        "description": "删除关闭的自定义技能的参考文档。"
+      },
       "webFetch": {
         "name": "网页读取",
         "description": "读取指定公开网页的静态 HTML 正文"
@@ -1112,6 +1170,14 @@
     "saveFailed": "保存失败，请重试",
     "backToHome": "返回首页",
     "index": "索引",
+    "session": "会话",
+    "sessionConnectTimeout": "模型连接超时",
+    "sessionConnectTimeoutHint": "等待与模型服务建立连接的最长时间。",
+    "sessionChunkTimeout": "流式输出空闲超时",
+    "sessionChunkTimeoutHint": "流式响应中等待下一段输出的最长时间。",
+    "sessionRequestTimeout": "模型请求超时",
+    "sessionRequestTimeoutHint": "模型服务请求的超时限制，具体行为取决于服务提供商。",
+    "sessionTimeoutSeconds": "秒",
     "context": "上下文",
     "contextCompressSystemPrompts": "合并系统提示词",
     "contextCompressSystemPromptsHint": "将连续的系统提示词合并为一条，可能会提高部分模型的连贯性，或部分提供商的兼容性。",
@@ -1186,6 +1252,7 @@
     "webSearchProviderDeepSeek": "DeepSeek",
     "webSearchProviderExa": "Exa",
     "webSearchProviderJina": "Jina",
+    "webSearchProviderKeenable": "Keenable",
     "webSearchProviderPerplexity": "Perplexity",
     "webSearchProviderSearxng": "SearXNG",
     "webSearchProviderSerper": "Serper",
@@ -1525,8 +1592,8 @@
     "presencePenaltyDesc": "存在惩罚（-2 到 2）",
     "repetitionPenalty": "Repetition Penalty",
     "repetitionPenaltyDesc": "重复惩罚（0-2）",
-    "maxTokens": "Max Tokens",
-    "maxTokensDesc": "最大生成令牌数",
+    "maxTokens": "最大输出长度",
+    "maxTokensPlaceholder": "模型默认",
     "contextLength": "上下文长度",
     "inputPrice": "输入价格",
     "outputPrice": "输出价格",
@@ -1539,10 +1606,12 @@
     "taskTypeEmbedding": "嵌入模型 (Embedding)",
     "taskTypeRerank": "重排序模型 (Rerank)",
     "dimensions": "向量维度",
-    "dimensionsPlaceholder": "输入向量维度",
-    "dimensionsDesc": "嵌入向量的维度（1-4096）",
+    "dimensionsPlaceholder": "输入维度，或点击自动获取",
+    "detectDimensions": "自动获取",
+    "detectDimensionsFailed": "自动获取维度失败，请检查提供商配置和模型 ID",
+    "dimensionsDesc": "可手动填写或自动获取。填写的维度会传给模型接口，请确认接口支持维度参数。",
     "dimensionsRequired": "请输入向量维度",
-    "dimensionsRange": "向量维度必须在1-4096之间",
+    "dimensionsRange": "向量维度必须为正整数",
     "llmModels": "语言模型",
     "embeddingModels": "嵌入模型",
     "rerankModels": "重排模型",
@@ -1574,14 +1643,13 @@
     "builtin": "内置"
   },
   "tabs": {
+    "scrollTabs": "滚动编辑器标签页",
     "close": "关闭",
     "closeOthers": "关闭其它标签页",
     "closeAll": "全部关闭",
     "lock": "锁定",
     "unlock": "解锁",
-    "createNewFile": "创建新文件",
-    "closeFile": "关闭文件",
-    "emptyTab": "空标签页",
+    "emptyHint": "在右侧列表中选择要打开的内容",
     "addToConversation": "添加到对话"
   },
   "chapterMenu": {
@@ -2319,7 +2387,8 @@
       "noteRead": "正在笔记读取",
       "noteWrite": "正在笔记写入",
       "chapterWrite": "正在章节写入",
-      "callingSkill": "正在调用技能"
+      "callingSkill": "正在调用技能",
+      "managingSkill": "正在管理技能"
     },
     "applyingChanges": "正在应用修改...",
     "waitingForApproval": "正在等待审批...",
@@ -2414,6 +2483,19 @@
       "activateSkill": "技能",
       "writeSkill": "保存技能",
       "referenceSkill": "技能参考",
+      "listSkills": "列出技能",
+      "getSkill": "查看技能",
+      "getSkillReferenceDoc": "查看技能参考文档",
+      "createSkill": "创建技能",
+      "editSkill": "编辑技能",
+      "createSkillReferenceDoc": "创建技能文档",
+      "editSkillReferenceDoc": "编辑技能参考文档",
+      "deleteSkill": "删除技能",
+      "deleteSkillReferenceDoc": "删除技能参考文档",
+      "skillReferenceId": "参考文档 ID",
+      "skillName": "名称",
+      "skillReferenceTitle": "标题",
+      "skillSummary": "简述",
       "skillNotFound": "未知技能",
       "questionCount": "{{count}} 个问题",
       "toolError": "工具调用失败",

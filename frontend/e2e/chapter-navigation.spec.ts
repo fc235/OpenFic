@@ -71,7 +71,7 @@ test("chapter names and diff lines open the target and repeat the highlight", as
   await expect(page.locator('[data-chapter-navigation-highlight="true"]')).toHaveCount(0, {
     timeout: 4000,
   });
-  await page.getByRole("button", { name: "Chapter A", exact: true }).click();
+  await page.getByRole("tab", { name: "Chapter A", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "章节标题" })).toHaveValue("Chapter A");
   expect(writes).toEqual([]);
 });
@@ -86,7 +86,7 @@ test("navigation retains unsaved drafts and works while AI locks editing", async
   await expect(page.locator('[data-chapter-navigation-highlight="true"]')).toHaveText(
     "paragraph 25",
   );
-  await page.getByRole("button", { name: "Chapter A", exact: true }).click();
+  await page.getByRole("tab", { name: "Chapter A", exact: true }).click();
   await expect(editor).toContainText("unsaved draft paragraph 1");
   await page.evaluate(() =>
     (window as any).assistantRegistration.onStateChange({
@@ -155,3 +155,65 @@ test("a chapter disappearing after preflight does not leave a broken editor tab"
     .poll(() => page.evaluate(() => (window as any).tabsStore.getState().activeTabId))
     .toBe("chapter:a");
 });
+
+test("a hidden sidebar chapter cannot consume navigation intended for the main editor", async ({
+  page,
+}) => {
+  await page.goto(`${harness}?sidebar`);
+  await expect(page.getByTestId("hidden-sidebar").locator(".ProseMirror")).toHaveCount(1);
+  const main = page.getByTestId("writing");
+  await expect(main.getByRole("textbox", { name: "章节标题" })).toHaveValue("Chapter A");
+  await page
+    .getByTestId("edit")
+    .getByRole("button", { name: "定位到对应段落: paragraph 60", exact: true })
+    .click();
+  await expect(main.locator('[data-chapter-navigation-highlight="true"]')).toHaveText(
+    "paragraph 60",
+  );
+  await expect(
+    page.getByTestId("hidden-sidebar").locator('[data-chapter-navigation-highlight="true"]'),
+  ).toHaveCount(0);
+});
+
+for (const focus of ["body", "title"] as const) {
+  test(`saving the main chapter ${focus} does not save a stale hidden sidebar copy`, async ({
+    page,
+  }) => {
+    await page.goto(`${harness}?sidebar=a`);
+    await expect(page.getByTestId("hidden-sidebar").locator(".ProseMirror")).toHaveCount(1);
+    const writes: any[] = [];
+    await page.route("**/api/v1/chapters/a", async (route) => {
+      if (route.request().method() === "PUT" || route.request().method() === "PATCH") {
+        const data = route.request().postDataJSON();
+        writes.push(data);
+        return route.fulfill({
+          json: {
+            id: "a",
+            project_id: "p",
+            volume_id: "v",
+            order: 1,
+            word_count: 3,
+            created_at: "2026-09-17T00:00:00Z",
+            updated_at: new Date().toISOString(),
+            ...data,
+          },
+        });
+      }
+      await route.fallback();
+    });
+    const main = page.getByTestId("writing");
+    if (focus === "body") await main.locator(".ProseMirror").fill("latest main draft");
+    else await main.getByRole("textbox", { name: "章节标题" }).fill("latest main title");
+    const saved = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/chapters/a") &&
+        ["PUT", "PATCH"].includes(response.request().method()),
+    );
+    await page.keyboard.press("Control+s");
+    await saved;
+    await expect.poll(() => writes.length).toBe(1);
+    expect(focus === "body" ? writes[0].content : writes[0].title).toContain(
+      `latest main ${focus === "body" ? "draft" : "title"}`,
+    );
+  });
+}

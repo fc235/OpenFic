@@ -12,6 +12,7 @@
       import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
       import { MemoryRouter, Routes, Route } from "react-router";
       import { AppShellContext } from "../src/features/app-shell/components/app-shell-context";
+      import { SidebarEntityEditor } from "../src/features/app-shell/components/right-sidebar-entity-editor";
       import { WritingPage } from "../src/features/writing/pages/writing-page";
       import { ToolMessage } from "../src/features/assistant/components/agent/message-blocks/messages/tool/tool-message";
       import { useTabsStore } from "../src/features/writing/store/use-tabs-store";
@@ -138,6 +139,19 @@
         return h(
           React.Fragment,
           null,
+          new URLSearchParams(location.search).has("sidebar")
+            ? h(
+                "div",
+                { hidden: true, "data-testid": "hidden-sidebar" },
+                h(SidebarEntityEditor, {
+                  kind: "chapter",
+                  entityId: new URLSearchParams(location.search).get("sidebar") || "b",
+                  isAgentLocked: false,
+                  onTitleChange: noop,
+                  onAddToConversation: noop,
+                }),
+              )
+            : null,
           h(
             "div",
             { style: { height: "58vh", minHeight: 280 }, "data-testid": "writing" },
@@ -153,7 +167,14 @@
           h(Toaster),
         );
       }
-      const renderHarness = (node) => createRoot(document.getElementById("root")).render(React.createElement(AppShellContext.Provider, { value: { isMobile: matchMedia("(max-width: 767px)").matches } }, node));
+      const renderHarness = (node) =>
+        createRoot(document.getElementById("root")).render(
+          React.createElement(
+            AppShellContext.Provider,
+            { value: { isMobile: matchMedia("(max-width: 767px)").matches } },
+            node,
+          ),
+        );
       renderHarness(
         h(
           Theme,

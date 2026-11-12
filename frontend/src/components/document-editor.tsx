@@ -1,7 +1,7 @@
 import { Box, Flex, Text } from "@radix-ui/themes";
 import { EditorContent } from "@tiptap/react";
 import { AnimatePresence } from "motion/react";
-import type { ComponentProps, ReactNode } from "react";
+import { useRef, type ComponentProps, type ReactNode } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useTranslation } from "react-i18next";
 
@@ -41,10 +41,12 @@ export function DocumentEditor({
   children,
 }: DocumentEditorProps) {
   const { t } = useTranslation();
+  const editorRootRef = useRef<HTMLDivElement>(null);
   const { editor, isAgentLocked, onLockedAction, onSave } = toolbar;
   useHotkeys(
     "mod+s",
     (event) => {
+      if (!(event.target instanceof Node) || !editorRootRef.current?.contains(event.target)) return;
       event.preventDefault();
       if (isAgentLocked) return onLockedAction?.();
       onSave(true);
@@ -54,6 +56,7 @@ export function DocumentEditor({
   useHotkeys(
     "mod+f",
     (event) => {
+      if (!(event.target instanceof Node) || !editorRootRef.current?.contains(event.target)) return;
       event.preventDefault();
       search.openFind();
     },
@@ -62,6 +65,7 @@ export function DocumentEditor({
   useHotkeys(
     "mod+h",
     (event) => {
+      if (!(event.target instanceof Node) || !editorRootRef.current?.contains(event.target)) return;
       event.preventDefault();
       search.openReplace();
     },
@@ -70,7 +74,10 @@ export function DocumentEditor({
   const status = toolbar.isSaving ? "saving" : toolbar.hasChanges ? "unsaved" : "saved";
 
   return (
-    <Box style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <Box
+      ref={editorRootRef}
+      style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}
+    >
       {banner}
       <EditorToolbar
         {...toolbar}

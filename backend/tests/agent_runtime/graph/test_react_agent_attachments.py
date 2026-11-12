@@ -9,6 +9,7 @@ from langchain_core.messages import HumanMessage
 
 from app.agent_runtime.context.settings import ContextSettings
 from app.agent_runtime.graph.react_agent import create_react_agent
+from app.agent_runtime.timeout_settings import parse_agent_timeout_settings
 from app.agent_runtime.types import ReactAgentConfig, TerminationCondition
 from app.models.clients.openai_codex import OpenAICodexChatModel
 
@@ -58,6 +59,8 @@ async def test_injected_file_attachment_reaches_model(
             "db_session": AsyncMock(),
         })
     with (
+        patch("app.agent_runtime.timeout_settings.load_agent_timeout_settings",
+              new=AsyncMock(return_value=parse_agent_timeout_settings({}))),
         patch("app.agent_runtime.graph.react_agent.build_context_parts",
               new=AsyncMock(return_value=[])),
         patch("app.agent_runtime.graph.react_agent.load_context_settings",

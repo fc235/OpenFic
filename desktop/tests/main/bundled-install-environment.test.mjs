@@ -42,13 +42,16 @@ test("bundled installs and certificate retries preserve the dependency index and
       return child;
     } },
   });
+  t.mock.module("../../dist/main/config.js", {
+    namedExports: { readDesktopConfig: async () => ({ downloadSource: "default" }) },
+  });
   const { ensureOpenFicRuntime } = await import("../../dist/main/runtime/openfic.js");
   const wheelPath = path.join(root, "openfic-1.0.0-py3-none-any.whl");
   await ensureOpenFicRuntime({ pythonPath: "unused", wasReplaced: false }, runtimeDir, "1.0.0", () => {}, wheelPath);
 
   assert.equal(installs.length, 3, "uv bootstrap plus wheel installation and its certificate retry");
   assert.deepEqual(indexProbes, [], "A bundled backend must not probe OpenFic on PyPI");
-  assert.deepEqual(proxyRequests, ["https://pypi.org/simple/"]);
+  assert.deepEqual(proxyRequests, ["https://pypi.org/simple/", "https://mirrors.cernet.edu.cn/pypi/web/simple/"]);
   for (const { environment } of installs) {
     for (const key of ["PIP_INDEX_URL", "UV_INDEX_URL", "pip_index_url", "uv_index_url"]) {
       assert.equal(environment[key], "https://pypi.org/simple/");

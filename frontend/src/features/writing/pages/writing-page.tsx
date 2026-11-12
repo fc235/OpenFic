@@ -10,20 +10,18 @@ import "./writing-page.css";
 
 import { PanelLayoutLoading, toast } from "@/components";
 import { AssistantSidebarHost, MobileAppSidebarTrigger, useAppShell } from "@/features/app-shell";
+import { RightSidebarPanel } from "@/features/app-shell/components/right-sidebar-panel";
 import type { AssistantSidebarState } from "@/features/assistant";
 import { useMobileSidebarSwipe } from "@/hooks/use-mobile-sidebar-swipe";
 import { usePersistedPanelLayout } from "@/hooks/use-persisted-panel-layout";
-import { getLastChapterId, setLastChapterId } from "@/lib/local-db";
 
 import { ChapterEditor } from "../components/chapter-editor";
-import { EditorTabs, EmptyTabContent } from "../components/editor-tabs";
+import { EditorTabs, EmptyEditorTabs } from "../components/editor-tabs";
 import { NoteEditor } from "../components/note-editor";
 import { PageLoadingOverlay } from "../components/page-loading-overlay";
 import { WritingSidebar } from "../components/writing-sidebar";
-import { useCreateChapter } from "../hooks/use-chapters";
 import { useNoteTree } from "../hooks/use-notes";
-import { useCreateVolume, useVolumeTree } from "../hooks/use-volumes";
-import { isEmptyTab } from "../lib/tab.types";
+import { useVolumeTree } from "../hooks/use-volumes";
 import { useChapterNavigationStore } from "../store/use-chapter-navigation-store";
 import { useTabsStore, useActiveTabId, useTabs, useTabsLoaded } from "../store/use-tabs-store";
 import { useWritingStore } from "../store/use-writing-store";
@@ -59,7 +57,6 @@ export function WritingPage() {
     syncTabsWithChapters,
     syncTabs,
     closeAllTabs,
-    showEmptyTab,
     setCurrentProject,
     updateTabScrollPosition,
   } = useTabsStore();
@@ -78,9 +75,6 @@ export function WritingPage() {
     [activeTab],
   );
   const activeEditorScrollTop = activeTab?.scrollTop ?? 0;
-
-  const createMutation = useCreateChapter(projectId ?? "");
-  const createVolumeMutation = useCreateVolume(projectId ?? "");
 
   const { data: chaptersData, isLoading: isChaptersLoading } = useVolumeTree(projectId ?? "");
 
@@ -188,57 +182,9 @@ export function WritingPage() {
   useEffect(() => {
     if (!projectId || !isTabsLoaded || hasInitialized.current) return;
 
-    const loadLastChapter = async () => {
-      if (tabs.length > 0) {
-        if (!activeTabId || isEmptyTab(activeTabId)) {
-          setInitialCurrentChapterNavigationKey(null);
-        }
-        hasInitialized.current = true;
-        return;
-      }
-
-      const lastChapterId = await getLastChapterId(projectId);
-      if (lastChapterId) {
-        const chapter = allChapters.find((c) => c.id === lastChapterId);
-        if (chapter) {
-          if (isMobile) {
-            openSingleTab(lastChapterId, chapter.title);
-          } else {
-            openTab(lastChapterId, chapter.title);
-          }
-          hasInitialized.current = true;
-          return;
-        }
-      }
-
-      if (isMobile && allChapters.length > 0) {
-        const firstChapter = allChapters[0];
-        openSingleTab(firstChapter.id, firstChapter.title);
-        hasInitialized.current = true;
-        return;
-      }
-
-      setInitialCurrentChapterNavigationKey(null);
-      hasInitialized.current = true;
-    };
-
-    loadLastChapter();
-  }, [
-    activeTabId,
-    allChapters,
-    isMobile,
-    isTabsLoaded,
-    openSingleTab,
-    openTab,
-    projectId,
-    tabs.length,
-  ]);
-
-  useEffect(() => {
-    if (projectId && activeTabId) {
-      setLastChapterId(projectId, activeTabId);
-    }
-  }, [projectId, activeTabId]);
+    if (!activeTabId) setInitialCurrentChapterNavigationKey(null);
+    hasInitialized.current = true;
+  }, [activeTabId, isTabsLoaded, projectId]);
 
   useEffect(() => {
     setCurrentChapter(currentChapterId);
@@ -327,45 +273,6 @@ export function WritingPage() {
     [handleSelectItem],
   );
 
-  const handleShowEmptyTab = useCallback(() => {
-    showEmptyTab();
-  }, [showEmptyTab]);
-
-  const handleCreateNewChapter = useCallback(async () => {
-    try {
-      let targetVolumeId = chaptersData?.volumes.at(-1)?.id;
-      if (!targetVolumeId) {
-        const volume = await createVolumeMutation.mutateAsync({
-          title: t("writing.firstVolumeDefaultTitle"),
-        });
-        targetVolumeId = volume.id;
-      }
-      const newChapter = await createMutation.mutateAsync({
-        volumeId: targetVolumeId,
-        title: t("writing.untitledChapter"),
-      });
-      if (isMobile) {
-        openSingleTab(newChapter.id, newChapter.title);
-      } else {
-        openTab(newChapter.id, newChapter.title);
-      }
-    } catch {
-      // 错误处理由 mutation 处理
-    }
-  }, [
-    chaptersData?.volumes,
-    createMutation,
-    createVolumeMutation,
-    isMobile,
-    t,
-    openSingleTab,
-    openTab,
-  ]);
-
-  const handleCloseAllTabs = useCallback(() => {
-    closeAllTabs();
-  }, [closeAllTabs]);
-
   const handleAddToConversation = useCallback(
     (markup: string) => {
       if (!markup.trim()) return;
@@ -429,6 +336,7 @@ export function WritingPage() {
               defaultSize={300}
               minSize={250}
               maxSize={400}
+              groupResizeBehavior="preserve-pixel-size"
               collapsible={false}
             >
               <Box className="writing-page-sidebar writing-page-sidebar--left">
@@ -444,12 +352,11 @@ export function WritingPage() {
             >
               <div className="writing-page-editor-shell">
                 <EditorTabs
-                  onAddTab={handleShowEmptyTab}
                   onAddToConversation={isViewingSubagent ? undefined : handleAddToConversation}
                 />
 
                 <Box className="writing-page-content-fill">
-                  {activeTabId && !isEmptyTab(activeTabId) ? (
+                  {activeTabId ? (
                     activeType === "note" ? (
                       <NoteEditor
                         noteId={activeRefId}
@@ -470,24 +377,13 @@ export function WritingPage() {
                       />
                     )
                   ) : (
-                    <EmptyTabContent
-                      onCreateNew={handleCreateNewChapter}
-                      onClose={handleCloseAllTabs}
-                    />
+                    <EmptyEditorTabs />
                   )}
                 </Box>
               </div>
             </Panel>
 
-            <Separator className="resize-handle writing-page-separator" />
-
-            <Panel
-              id="right-sidebar"
-              defaultSize={500}
-              minSize={300}
-              maxSize={600}
-              collapsible={false}
-            >
+            <RightSidebarPanel id="right-sidebar">
               <Box className="writing-page-sidebar writing-page-sidebar--right">
                 <AssistantSidebarHost
                   projectId={projectId}
@@ -496,7 +392,7 @@ export function WritingPage() {
                   isMobileOverlay={false}
                 />
               </Box>
-            </Panel>
+            </RightSidebarPanel>
           </Group>
         ) : isMobile ? (
           <Flex className="writing-page-mobile-layout">
@@ -561,7 +457,7 @@ export function WritingPage() {
               </Flex>
 
               <Box className="writing-page-content-fill">
-                {activeTabId && !isEmptyTab(activeTabId) ? (
+                {activeTabId ? (
                   activeType === "note" ? (
                     <NoteEditor
                       noteId={activeRefId}
@@ -582,10 +478,7 @@ export function WritingPage() {
                     />
                   )
                 ) : (
-                  <EmptyTabContent
-                    onCreateNew={handleCreateNewChapter}
-                    onClose={handleCloseAllTabs}
-                  />
+                  <EmptyEditorTabs />
                 )}
               </Box>
 
